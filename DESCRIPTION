@@ -1,0 +1,8 @@
+Package: mptools
+Type: Package
+Title: What the Package Does (Title Case)
+Version: 0.1.0
+Authors@R: person("Martin", "Pastoors", email = "martin.pastoors@gmail.com", role = c("aut", "cre"))
+Description: Collection of tools
+License: Open
+LazyData: TRUE
