@@ -23,6 +23,7 @@
 # ICESarea          : calculate ICES area from positions
 # remove_roman      : remove roman numbers from ICES area names
 # csquare           : collection of csquare utilities
+# more to come
 # --------------------------------------------------------------------------------
 
 # publication theme,  updated: 20170704
