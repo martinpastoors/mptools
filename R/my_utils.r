@@ -5,6 +5,7 @@
 # 
 # 04/04/2017 combined code for several utils
 # 03/09/2017 added z_chords
+# 06/09/2017 added get_dropbox
 # --------------------------------------------------------------------------------
 # theme_publication : set up the publication theme 
 # map_aspect        : calculate aspect ratio of plots
@@ -25,6 +26,7 @@
 # remove_roman      : remove roman numbers from ICES area names
 # csquare           : collection of csquare utilities
 # encode_zchords    : coding for z-coordinate system
+# get_dropbox       : get local dropbox folder
 # --------------------------------------------------------------------------------
 
 # publication theme,  updated: 20170704
@@ -1119,3 +1121,28 @@ encode_zchords <- function(x, y, dx = 1, dy = 0.5 * dx, invalids = TRUE) {
 #   group_by(sq) %>% 
 #   summarise(effort = sum(effort) / 60/1000) %>% # scale to lets say thousand hours
 #   separate(sq, c("lon", "lat"), sep = ":", convert = TRUE, remove = FALSE)
+
+# -----------------------------------------------------------------------------------
+# Taken from: https://www.r-bloggers.com/finding-my-dropbox-in-r/
+
+get_dropbox <- function () {
+  
+  # install.packages("rjson")
+  if (Sys.info()['sysname'] == 'Darwin') {
+    info <- RJSONIO::fromJSON(
+      file.path(path.expand("~"),'.dropbox','info.json'))
+  }
+  if (Sys.info()['sysname'] == 'Windows') {
+    info <- RJSONIO::fromJSON(
+      if (file.exists(file.path(Sys.getenv('APPDATA'), 'Dropbox','info.json'))) {
+        file.path(Sys.getenv('APPDATA'), 'Dropbox', 'info.json')
+      } else {
+        file.path(Sys.getenv('LOCALAPPDATA'),'Dropbox','info.json')
+      }
+    )
+  }
+  
+  dir <- info$personal$path
+  return(dir)
+}
+
