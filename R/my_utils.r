@@ -27,6 +27,7 @@
 # csquare           : collection of csquare utilities
 # encode_zchords    : coding for z-coordinate system
 # get_dropbox       : get local dropbox folder
+# sortunique        : get sorted unique values of a variable
 # --------------------------------------------------------------------------------
 
 # publication theme,  updated: 20170704
@@ -1144,5 +1145,14 @@ get_dropbox <- function () {
   
   dir <- info$personal$path
   return(dir)
+}
+
+# -----------------------------------------------------------------------------------
+# Sortunique
+
+sortunique <- function (var) {
+  
+  return(sort(unique(var)))
+
 }
 
