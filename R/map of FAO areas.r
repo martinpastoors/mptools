@@ -7,6 +7,7 @@
 # 04/04/2017 Irish closure added
 # 27/04/2017 NAFO area added
 # 24/08/2017 Update code for changes in R
+# 19/12/2017 Cleaned up and documented the code
 # ===========================================================================
 
 library(tidyverse)
@@ -14,7 +15,7 @@ library(stringr)
 library(mapproj)
 
 # set working directory
-setwd("D:/XXX/PRF")
+setwd("D:/GIT/PRF")
 
 #  load the map files
 load("rdata/world.europe.df.RData")
@@ -22,15 +23,11 @@ load("rdata/eez.europe.df.RData")
 load("rdata/fao27.df.RData")
 load("rdata/highsea.df.RData")
 load("rdata/uklimit.df.RData")
+load("rdata/icesrectangles.df.RData")
 
 load("rdata/fao.df.RData")
 load("rdata/eez.df.RData")
 load("rdata/world.df.RData")
-
-# glimpse(fao.df)
-
-# read FAO AFSIS species list
-load(file="rdata/afsis.RData")
 
 # Source all the utiles
 source("D:/GIT/mptools/R/my_utils.r")
@@ -41,41 +38,47 @@ xmax  <- 10;
 ymin  <- 47; 
 ymax  <- 65
 
-faonames <-
+# calculate area midpoints
+area_midpoints <-
   fao.df %>% 
   group_by(id, F_CODE) %>% 
   summarize(long = mean(range(long), na.rm=TRUE),
             lat  = mean(range(lat), na.rm=TRUE)) 
 
 
-mycode   <- c("87.3.2","87.3.3","87.2.6",
-              "87.1.4")
+# different options for specific areas to be shown
 
-# mycode   <- c("34.1.11","34.1.12","34.1.13",
-#               "34.1.31","34.1.32",
-#               "34.3.11","34.3.12","34.3.13",
-#               "34.1.2",
-#               "34.2",
-#               "34.3.2")
+# myareas   <- c("87.3.2","87.3.3","87.2.6",
+#               "87.1.4")
 
+myareas   <- c("34.1.11","34.1.12","34.1.13",
+              "34.1.31","34.1.32",
+              "34.3.11","34.3.12","34.3.13",
+              "34.1.2",
+              "34.2",
+              "34.3.2")
+
+# set limits based on selected areas
 mylimits <- 
-  filter(fao.df, F_CODE %in% mycode) %>% 
+  filter(fao.df, F_CODE %in% myareas) %>% 
   summarise(xmin = min(long, na.rm=TRUE),
             xmax = max(long, na.rm=TRUE),
             ymin = min(lat, na.rm=TRUE),
             ymax = max(lat, na.rm=TRUE))
+
+# set area names for selected areas
 mynames <-
-  filter(fao.df, F_CODE %in% mycode) %>% 
+  filter(fao.df, F_CODE %in% myareas) %>% 
   group_by(F_CODE) %>% 
   filter(row_number() == 1) %>% 
   select(F_CODE) %>% 
-  left_join(faonames, by=c("F_CODE"))
+  left_join(area_midpoints, by=c("F_CODE"))
 
 # write.csv(fao.df, file="excel/fao.csv")
 # sort(unique(fao.df$F_CODE))
 
 fao.df %>%
-  filter(F_CODE  %in% mycode) %>% 
+  filter(F_CODE  %in% myareas) %>% 
   filter(hole == FALSE) %>% 
   # write.csv(., file="excel/fao.csv")
   
@@ -246,17 +249,24 @@ fao27.df %>%
 # Generic plot of certain FAO areas
 # ===========================================================================
 myareas  <- c(
-  "27.1.b"
-  # "27.5.a.1", "27.5.a.2",
-  # "27.5.b.1.a","27.5.b.1.b", "27.5.b.2",
-  # "27.6.b.1", "27.6.b.2",
-  # "27.7.c.1", "27.7.j.1", "27.7.k.1",
-  # "27.8.e.1", "27.8.d.2","27.8.a","27.8.b","27.8.c",
+  "27.2.a",
+  "27.3.a",
+  "27.4.a","27.4.b","27.4.c", 
+  "27.5.a.1", "27.5.a.2",
+  "27.5.b.1.a","27.5.b.1.b", "27.5.b.2",
+  "27.6.b.1", "27.6.b.2","27.6.a",
+  "27.7.a","27.7.b","27.7.c.2","27.7.d","27.7.e","27.7.f", "27.7.g","27.7.h",
+  "27.7.c.1", "27.7.j.1", "27.7.k.1",
+  "27.7.c.2", "27.7.j.2", "27.7.k.2",
+  "27.8.a","27.8.b","27.8.c",
+  "27.8.d.1", "27.8.e.1",
+  "27.8.d.2", "27.8.e.2",
   # "27.9.b.1","27.9.a",
-  # "27.12.a.1","27.12.a.2", "27.12.a.3","27.12.a.4",
-  # "27.12.b","27.12.c","27.12.d"
+  "27.10.b",
+  "27.12.a.1","27.12.a.2", "27.12.a.3","27.12.a.4",
+  "27.12.b","27.12.c","27.12.d"
   ) 
-mycolour <- "pink" 
+
 myrange <-
   fao.df %>% 
   filter(tolower(F_CODE) %in% myareas) %>%
@@ -302,7 +312,7 @@ fao.df %>%
 # ===========================================================================
 
 mylevel <- "DIVISION"
-myareas <- c(34)
+myareas <- c(27)
 
 myrange <-
   fao.df %>% 
@@ -332,8 +342,7 @@ fao.df %>%
   labs(x = NULL, y = NULL) +    
   
   coord_quickmap(xlim=c(myrange$xmin,myrange$xmax), ylim=c(myrange$ymin, myrange$ymax)) +
-  # coord_map("simpleconic", lat0=40, lat1=60) +
-  
+
   # EEZ
   geom_polygon(data=eez.df, aes(long, lat, group=group), 
                size=0.5, fill="lightblue", colour="gray20", lty="dashed", alpha=0.5) +
@@ -346,9 +355,13 @@ fao.df %>%
   # geom_polygon(data=NM12.df, aes(long, lat, group=group), 
   #              size=0.5, fill="darkred", colour="gray20", lty="dashed", alpha=0.5) +
   
-  # FAO
+  # ICES rectangles
+  # geom_polygon(data=icesrectangles.df, aes(long, lat, group=group), 
+  #              alpha=0.8, size=0.2, colour="black", fill=NA) +
+  
+  # FAO areas at subarea level
   geom_polygon(aes(long, lat, group=group, fill=factor(F_SUBAREA)), 
-               alpha=0.8, size=0.8, colour="black") +
+               alpha=0.8, size=0.8, colour="gray") +
   # geom_polygon(aes(long, lat, group=group), 
   #              fill=NA, size=0.1, colour="gray60") +
   
