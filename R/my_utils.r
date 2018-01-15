@@ -6,6 +6,7 @@
 # 04/04/2017 combined code for several utils
 # 03/09/2017 added z_chords
 # 06/09/2017 added get_dropbox
+# 20/10/2017 removed full stop from lowcase
 # --------------------------------------------------------------------------------
 # theme_publication : set up the publication theme 
 # map_aspect        : calculate aspect ratio of plots
