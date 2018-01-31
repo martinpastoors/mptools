@@ -28,6 +28,7 @@
 # csquare           : collection of csquare utilities
 # encode_zchords    : coding for z-coordinate system
 # get_dropbox       : get local dropbox folder
+# get_onedrive      : get local onedrive folder for PFA
 # sortunique        : get sorted unique values of a variable
 # --------------------------------------------------------------------------------
 
@@ -1147,6 +1148,18 @@ get_dropbox <- function () {
   dir <- info$personal$path
   return(dir)
 }
+
+# -----------------------------------------------------------------------------------
+get_onedrive <- function () {
+  
+  if (Sys.info()['sysname'] == 'Windows') {
+    dir <- file.path(Sys.getenv('APPDATA'), 'PFA/PFA team site - PRF') 
+  }
+  
+  return(dir)
+}
+
+# get_onedrive()
 
 # -----------------------------------------------------------------------------------
 # Sortunique
