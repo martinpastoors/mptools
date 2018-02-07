@@ -7,6 +7,7 @@
 # 03/09/2017 added z_chords
 # 06/09/2017 added get_dropbox
 # 20/10/2017 removed full stop from lowcase
+# 07/02/2018 added more characters to lowcase
 # --------------------------------------------------------------------------------
 # theme_publication : set up the publication theme 
 # map_aspect        : calculate aspect ratio of plots
@@ -194,9 +195,10 @@ list_functions <- function(x) {
 
 # lowcase function
 lowcase <- function(df) {
-  names(df) <- tolower(names(df)) %>% gsub("\\s+|\\.+|_+","",.) 
+  names(df) <- tolower(names(df)) %>% gsub("\\?|\\s+|\\.+|_+|\\(|\\)","",.) 
   df
 }
+
 
 # -----------------------------------------------------------------------------------
 
