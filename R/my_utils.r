@@ -8,14 +8,18 @@
 # 06/09/2017 added get_dropbox
 # 20/10/2017 removed full stop from lowcase
 # 07/02/2018 added more characters to lowcase
+# 05/11/2019 added an, ac
 # --------------------------------------------------------------------------------
+#
+# an                : as.numeric
+# ac                : as.character
 # theme_publication : set up the publication theme 
 # map_aspect        : calculate aspect ratio of plots
 # count_na          : count number of na in dataset
 # count_not_na      : count number of not-na in dataset
 # count_zeroes      : count number of zeroes in numeric fields
 # crayola           : plot of age compositions (overtaken by ggmisc)
-# list_functions    : list all functions in a package
+# list_all_objects_in_package   : list all objects in a package
 # lowcase           : convert variables to lowcase and remove special characters
 # no.emphasis.table : function to remove first column of tables
 # rbind.all.columns : function to bind equal columns in two datasets
@@ -32,6 +36,12 @@
 # get_onedrive      : get local onedrive folder for PFA
 # sortunique        : get sorted unique values of a variable
 # --------------------------------------------------------------------------------
+
+# as.numeric
+an <- function(x){ return(as.numeric(x))}
+
+# as.character
+ac <- function(x){ return(as.character(x))}
 
 # publication theme,  updated: 20170704
 theme_publication <- function(base_size=14, base_family="Helvetica") {
@@ -185,11 +195,11 @@ crayola <- function(d, t="", g) {
 
 # -----------------------------------------------------------------------------------
 
-list_functions <- function(x) {
-  #lsf.str("package:readr")
-  #lsf.str(x, pattern="package")
-  print("not working yet")
+# List all objects in a package
+list_all_objects_in_package <- function(x) {
+  print(lsf.str(paste("package:",x, sep="")))
 }
+
 
 # -----------------------------------------------------------------------------------
 
@@ -1099,13 +1109,35 @@ csquare_lon <- function(lat, lon, resolution) {
 # Taken from http://www.hafro.is/~einarhj/education/tcrenv2017/b_highresolutiongridding.html
 # 3/9/2017
 
+# encode_zchords <- function(x, y, dx = 1, dy = 0.5 * dx, invalids = TRUE) {
+#   
+#   x.brks <- seq(floor(min(x)),ceiling(max(x)),dx)
+#   x.ints <- findInterval(x, x.brks, all.inside = TRUE)
+#   x <- (x.brks[x.ints] + x.brks[x.ints + 1]) / 2
+#   
+#   y.brks <- seq(floor(min(y)),ceiling(max(y)),dy)
+#   y.ints <- findInterval(y, y.brks, all.inside = TRUE)
+#   y <- (y.brks[y.ints] + y.brks[y.ints + 1]) / 2
+#   
+#   if(invalids) {
+#     x <- ifelse(x >= -180 & x <= 180, x, NA)
+#     y <- ifelse(y >= -90  & y <= 90 , y, NA)
+#   }
+#   
+#   return(paste(round(x,6), round(y,6), sep = ":"))
+#   
+# }
+
 encode_zchords <- function(x, y, dx = 1, dy = 0.5 * dx, invalids = TRUE) {
   
-  x.brks <- seq(floor(min(x)),ceiling(max(x)),dx)
+  x.brks <- seq(floor(min(x)), max(ceiling(max(x)), ceiling(min(x)+dx)), dx)
+  # x.brks <- seq(floor(min(x)),ceiling(max(x)),dx)
+  
   x.ints <- findInterval(x, x.brks, all.inside = TRUE)
   x <- (x.brks[x.ints] + x.brks[x.ints + 1]) / 2
   
-  y.brks <- seq(floor(min(y)),ceiling(max(y)),dy)
+  y.brks <- seq(floor(min(y)), max(ceiling(max(y)), ceiling(min(y)+dy)), dy)
+  # y.brks <- seq(floor(min(y)),ceiling(max(y)),dy)
   y.ints <- findInterval(y, y.brks, all.inside = TRUE)
   y <- (y.brks[y.ints] + y.brks[y.ints + 1]) / 2
   
