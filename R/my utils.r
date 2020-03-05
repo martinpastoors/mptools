@@ -9,15 +9,20 @@
 # 20/10/2017 removed full stop from lowcase
 # 07/02/2018 added more characters to lowcase
 # 05/11/2019 added an, ac
+# 27/01/2020 added excel_timezone_to_utc
+# 05/03/2020 added count for Inf and for non_finite (=NA, NaN, Inf, -Inf)
 # --------------------------------------------------------------------------------
 #
 # an                : as.numeric
 # ac                : as.character
 # theme_publication : set up the publication theme 
+# excel_timezone_to_utc : read excel datetime with timezone and convert to UTC
 # map_aspect        : calculate aspect ratio of plots
 # count_na          : count number of na in dataset
 # count_not_na      : count number of not-na in dataset
 # count_zeroes      : count number of zeroes in numeric fields
+# count_inf         : count number of Inf in dataset
+# count_not_finite  : count number of NA, NaN and Inf in dataset
 # crayola           : plot of age compositions (overtaken by ggmisc)
 # list_all_objects_in_package   : list all objects in a package
 # lowcase           : convert variables to lowcase and remove special characters
@@ -75,6 +80,18 @@ theme_publication <- function(base_size=14, base_family="Helvetica") {
 
 # -----------------------------------------------------------------------------------
 
+# Convert Excel datetime with timezone to UTC datetime,  updated: 20200127
+
+excel_timezone_to_utc <- function(t,timezone) {
+  x1 = as.POSIXct( t * (60*60*24), origin="1899-12-30", tz="UTC")
+  x2 = force_tz(x1, unique(timezone))
+  x3 = lubridate::with_tz(x2, tz="UTC")
+  return(x3)
+}
+# excel_timezone_to_utc(t=35451.45, timezone="Europe/Amsterdam")
+
+# -----------------------------------------------------------------------------------
+
 map_aspect = function(x, y) {
   
   require(ggplot2)
@@ -111,6 +128,18 @@ count_not_na <- function(x) {
 
 count_zeroes <- function(x) {
   sapply(x, function(y) sum(y == 0, na.rm=T))
+}
+
+# -----------------------------------------------------------------------------------
+
+count_inf <- function(x) {
+  sapply(x, function(y) sum(is.infinite(y), na.rm=T))
+}
+
+# -----------------------------------------------------------------------------------
+
+count_not_finite <- function(x) {
+  sapply(x, function(y) sum(!is.finite(y), na.rm=T))
 }
 
 # -----------------------------------------------------------------------------------
