@@ -1,48 +1,15 @@
-
-library(trackeR)
-library(tidyverse)
-
-my.filepath <- "c:/users/marti/Dropbox/Hardloop"
-my.files <- list.files("c:/users/marti/Dropbox/Hardloop", pattern = "*.tcx", full.names = TRUE)
-test     <- readFitFile(my.files[[1]])
-runDF    <- readTCX(file = my.files[[1]], timezone = "GMT")
-
-filepath <- system.file("extdata/tcx/", "2013-06-01-183220.TCX.gz", package = "trackeR")
-setwd("c:/users/marti/Dropbox/Hardloop")
-filepath <- system.file("run-20210110T083628.tcx", package = "trackeR")
-runDF <- readTCX(file = filepath, timezone = "GMT")
-
-# data(runs, package = "trackeR")
-plot(runDF, session = 1:5, what = c("speed", "pace", "altitude"))
-plot(runDF, session = 1:5)
-plot(runDF)
-
 # FITfileR codes to read fit files
 
-devtools::install_github("grimbough/FITfileR")
-
-library(FITfileR)
+library(FITfileR)    # devtools::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(leaflet)
 
 my.filepath <- "c:/users/marti/Dropbox/Hardloop"
 my.files <- list.files("c:/users/marti/Dropbox/Hardloop", pattern = "*.fit", full.names = TRUE)
 
-# test     <- readFitFile(my.files[[1]])
-# getMessagesByType(test, "session") %>% bind_rows() %>% View()
-# getMessagesByType(test, "sport") %>% bind_rows() %>% View()
-# getMessagesByType(test, "lap") %>% bind_rows() %>% View()
-# getMessagesByType(test, "session") %>% bind_rows() %>% View()
-# records(test) %>% 
-#   bind_rows() %>% 
-#   arrange(timestamp) %>% 
-#   dplyr::select(position_long, position_lat) %>% 
-#   as.matrix() %>%
-#   leaflet(  ) %>%
-#   addTiles() %>%
-#   addPolylines( )
-
+# empty data frames
 session <- rec <- lap <- data.frame(stringsAsFactors = FALSE)
+
 # i <- 200
 # for (i in 190:200) {
 for (i in 1:length(my.files)) {
@@ -54,11 +21,34 @@ for (i in 1:length(my.files)) {
   lap     <- bind_rows(lap, getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()))
 }
 
-save(session, file=file.path(my.filepath, "session.RData"))
-save(rec,     file=file.path(my.filepath, "rec.RData"))
-save(lap,     file=file.path(my.filepath, "laps.RData"))
+rec <-
+  rec %>% 
+  drop_na(position_lat, position_long) %>% 
+  mutate(date=as.Date(timestamp)) %>% 
+  arrange(desc(date),timestamp) 
 
-writexl::write_xlsx(session, path=file.path(my.filepath,"sessions.xlsx"))
+session <-
+  session %>% 
+  arrange(desc(start_time)) 
+
+lap %>% 
+  mutate(date=as.Date(timestamp)) %>% 
+  arrange(desc(date),timestamp) %>% 
+  View()
+
+
+# save files
+save(session, file=file.path(my.filepath, "FITfileR", "session.RData"))
+save(rec,     file=file.path(my.filepath, "FITfileR", "rec.RData"))
+save(lap,     file=file.path(my.filepath, "FITfileR", "laps.RData"))
+writexl::write_xlsx(session, path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
+
+# load files
+load(file=file.path(my.filepath, "FITfileR", "session.RData"))
+load(file=file.path(my.filepath, "FITfileR", "rec.RData"))
+load(file=file.path(my.filepath, "FITfileR", "laps.RData"))
+tmp <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
+
 
 ggmap::get_map(source = 'stamen')
 glimpse(rec)
@@ -114,3 +104,27 @@ records(readFitFile(my.files[[i]]))[[2]] %>% View()
 length(records(readFitFile((my.files[[1]]))))
         
 setwd("C:/Users/marti/Dropbox/Hardloop")
+
+
+
+
+
+
+
+library(trackeR)
+library(tidyverse)
+
+my.filepath <- "c:/users/marti/Dropbox/Hardloop"
+my.files <- list.files("c:/users/marti/Dropbox/Hardloop", pattern = "*.tcx", full.names = TRUE)
+test     <- readFitFile(my.files[[1]])
+runDF    <- readTCX(file = my.files[[1]], timezone = "GMT")
+
+filepath <- system.file("extdata/tcx/", "2013-06-01-183220.TCX.gz", package = "trackeR")
+setwd("c:/users/marti/Dropbox/Hardloop")
+filepath <- system.file("run-20210110T083628.tcx", package = "trackeR")
+runDF <- readTCX(file = filepath, timezone = "GMT")
+
+# data(runs, package = "trackeR")
+plot(runDF, session = 1:5, what = c("speed", "pace", "altitude"))
+plot(runDF, session = 1:5)
+plot(runDF)
