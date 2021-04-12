@@ -10,7 +10,7 @@ my.files <- list.files("c:/users/marti/Dropbox/Hardloop", pattern = "*.fit", ful
 # empty data frames
 session <- rec <- lap <- data.frame(stringsAsFactors = FALSE)
 
-# i <- 200
+# i <- 221
 # for (i in 190:200) {
 for (i in 1:length(my.files)) {
   print(i)
@@ -31,11 +31,10 @@ session <-
   session %>% 
   arrange(desc(start_time)) 
 
-lap %>% 
+lap <-
+  lap %>% 
   mutate(date=as.Date(timestamp)) %>% 
-  arrange(desc(date),timestamp) %>% 
-  View()
-
+  arrange(desc(date),timestamp) 
 
 # save files
 save(session, file=file.path(my.filepath, "FITfileR", "session.RData"))
@@ -49,8 +48,28 @@ load(file=file.path(my.filepath, "FITfileR", "rec.RData"))
 load(file=file.path(my.filepath, "FITfileR", "laps.RData"))
 tmp <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
 
+fn      <- basename(my.files[[i]])
+ff      <- readFitFile(my.files[[i]])
+l       <- getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()) %>% 
+  mutate(km_hour = avg_speed * (60*60) / 1000) %>% 
+  mutate(change  = km_hour / lag(km_hour) - 1) %>% 
+  mutate(changed = ifelse(abs(change) > 0.1, 1, 0)) %>% 
 
-ggmap::get_map(source = 'stamen')
+  mutate(lap2    = ifelse(row_number()==1, 1, 0)) %>%  
+  mutate(lap2    = ifelse(row_number() >1, lag(lap2) + changed, lap2))   
+  
+
+
+
+attr(l$avg_speed, "units")
+16.666666667 / l$avg_speed
+l$avg_speed * (60*60) / 1000
+
+ggmap::get_map(source = 'stamen')t1 <-
+  lap %>% 
+  filter(date == as.Date("2021-04-11")) %>% 
+  group_by
+
 glimpse(rec)
 range(rec$position_long, na.rm=TRUE)
 
