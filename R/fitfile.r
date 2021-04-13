@@ -4,8 +4,10 @@ library(FITfileR)    # devtools::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(leaflet)
 
+source("../prf/R/my utils.r")
 my.filepath <- "c:/users/marti/Dropbox/Hardloop"
-my.files <- list.files("c:/users/marti/Dropbox/Hardloop", pattern = "*.fit", full.names = TRUE)
+my.files <- list.files(path=file.path(get_dropbox(),"Hardloop"), pattern = "*.fit", full.names = TRUE)
+
 
 # empty data frames
 session <- rec <- lap <- data.frame(stringsAsFactors = FALSE)
@@ -48,18 +50,38 @@ load(file=file.path(my.filepath, "FITfileR", "rec.RData"))
 load(file=file.path(my.filepath, "FITfileR", "laps.RData"))
 tmp <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
 
+i <- 221
 fn      <- basename(my.files[[i]])
 ff      <- readFitFile(my.files[[i]])
 l       <- getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()) %>% 
   mutate(km_hour = avg_speed * (60*60) / 1000) %>% 
   mutate(change  = km_hour / lag(km_hour) - 1) %>% 
   mutate(changed = ifelse(abs(change) > 0.1, 1, 0)) %>% 
+  mutate(test    = lag(lap, default = vctrs::vec_cast(lap, integer())[1])) 
 
   mutate(lap2    = ifelse(row_number()==1, 1, 0)) %>%  
   mutate(lap2    = ifelse(row_number() >1, lag(lap2) + changed, lap2))   
   
 
+l %>% ggplot(aes(x=start_time, y=change)) + geom_line() + geom_point() +
+  geom_hline(yintercept=0.15, linetype="dashed") +
+  geom_hline(yintercept=-0.15, linetype="dashed")
 
+data <- tribble(
+  ~month, ~index,
+  "Jan",  100.5,
+  "Feb",  110.5,
+  "Mar",  99.8
+)
+
+data %>%
+  mutate(test = lag(index, default = vctrs::vec_cast(index, double())[2])) 
+
+data %>%
+  mutate(test = lag(index, default = vctrs::vec_cast(index, double())[1])) %>% 
+  mutate(excel_formula = index/lag(index, default = vctrs::vec_cast(index, double())[1])) %>% 
+  mutate(excel_formula = lag(excel_formula, default = 1) * excel_formula * 100) %>% 
+  print.data.frame()
 
 attr(l$avg_speed, "units")
 16.666666667 / l$avg_speed
