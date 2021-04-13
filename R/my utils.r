@@ -40,6 +40,8 @@
 # get_dropbox       : get local dropbox folder
 # get_onedrive      : get local onedrive folder for PFA
 # sortunique        : get sorted unique values of a variable
+# %nonin%
+# loadrdata
 # --------------------------------------------------------------------------------
 
 # as.numeric
@@ -102,7 +104,7 @@ map_aspect = function(x, y) {
   print("x")
   print(range(x, na.rm=TRUE))
   print(x.center)
-
+  
   print("y")
   print(range(y, na.rm=TRUE))
   print(y.center)
@@ -145,7 +147,7 @@ count_not_finite <- function(x) {
 # -----------------------------------------------------------------------------------
 
 crayola <- function(d, t="", g) {
-
+  
   # The crayola function originates from Einar Hjorleifsson
   # Converted into a function, by Martin Pastoors
   # note: data needs to be in long format: year, age, number
@@ -195,22 +197,22 @@ crayola <- function(d, t="", g) {
     plist <- list()
     
     for (a in unique(d[,g]) ) {
-        i <- i + 1
-        p <- ggplot(filter(d, area==a), 
-                 aes(year, number, fill = factor(yc))) +
-            theme_bw() +
-            theme(legend.position = "none") + 
-            theme(axis.text.y = element_blank()) +
-            geom_hline(yintercept = 1, col = "grey") +
-            geom_bar(stat = "identity") +
-            expand_limits(x = c(min(d$year), max(d$year)), y = 0) +
-            scale_fill_manual(values = PAIRED[1:n]) +
-            facet_grid(age ~ ., scale = "free_y", switch = "y") +
-            labs(x = NULL, y = NULL, title=a) +
-            scale_y_continuous(NULL, NULL)
-        plist[[i]] <- p
-        
-        # mystr <- paste0(mystr, "p",as.character(i),", ", sep="")
+      i <- i + 1
+      p <- ggplot(filter(d, area==a), 
+                  aes(year, number, fill = factor(yc))) +
+        theme_bw() +
+        theme(legend.position = "none") + 
+        theme(axis.text.y = element_blank()) +
+        geom_hline(yintercept = 1, col = "grey") +
+        geom_bar(stat = "identity") +
+        expand_limits(x = c(min(d$year), max(d$year)), y = 0) +
+        scale_fill_manual(values = PAIRED[1:n]) +
+        facet_grid(age ~ ., scale = "free_y", switch = "y") +
+        labs(x = NULL, y = NULL, title=a) +
+        scale_y_continuous(NULL, NULL)
+      plist[[i]] <- p
+      
+      # mystr <- paste0(mystr, "p",as.character(i),", ", sep="")
     } # end of for loop
     
     print(plot_grid(plotlist=plist, ncol=length(plist), scale=0.95, align="hv")) 
@@ -312,7 +314,7 @@ us <- function(dat) {
 # Multiple plot function
 
 multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
-
+  
   # ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
   # - cols:   Number of columns in layout
   # - layout: A matrix specifying the layout. If present, 'cols' is ignored.
@@ -829,21 +831,21 @@ ICESarea <-
 
 # NOT WORKING?
 remove_roman <- function(area) {
-      area  <- gsub("xiv" ,"14", area)
-      area  <- gsub("xiii","13", area)
-      area  <- gsub("xii" ,"12", area)
-      area  <- gsub("xi"  ,"11", area)
-      area  <- gsub("ix"  ,"9" , area)
-      area  <- gsub("x"   ,"10", area)
-      area  <- gsub("viii","8" , area)
-      area  <- gsub("vii" ,"7" , area)
-      area  <- gsub("vi"  ,"6" , area)
-      area  <- gsub("iv"  ,"4" , area)
-      area  <- gsub("v"   ,"5" , area)
-      area  <- gsub("iii" ,"3" , area)
-      area  <- gsub("ii"  ,"2" , area)
-      area  <- gsub("i"   ,"1" , area)
-      return(area)
+  area  <- gsub("xiv" ,"14", area)
+  area  <- gsub("xiii","13", area)
+  area  <- gsub("xii" ,"12", area)
+  area  <- gsub("xi"  ,"11", area)
+  area  <- gsub("ix"  ,"9" , area)
+  area  <- gsub("x"   ,"10", area)
+  area  <- gsub("viii","8" , area)
+  area  <- gsub("vii" ,"7" , area)
+  area  <- gsub("vi"  ,"6" , area)
+  area  <- gsub("iv"  ,"4" , area)
+  area  <- gsub("v"   ,"5" , area)
+  area  <- gsub("iii" ,"3" , area)
+  area  <- gsub("ii"  ,"2" , area)
+  area  <- gsub("i"   ,"1" , area)
+  return(area)
 }
 
 # -----------------------------------------------------------------------------------
@@ -1216,10 +1218,18 @@ get_dropbox <- function () {
 get_onedrive <- function () {
   
   if (Sys.info()['sysname'] == 'Windows') {
-    dir <- file.path(Sys.getenv('APPDATA'), 'PFA/PFA team site - PRF') 
+    
+    # set onedrive directory
+    if(dir.exists(file.path(Sys.getenv('USERPROFILE'), 'PFA/PFA team site - PRF'))) {
+      onedrive <- file.path(Sys.getenv('USERPROFILE'), 'PFA/PFA team site - PRF')   
+    } else if(dir.exists('C:/DATA/PFA/PFA team site - PRF')) {
+      onedrive <- 'C:/DATA/PFA/PFA team site - PRF'
+    } else {
+      stop("Onedrive directory not found")
+    }
   }
   
-  return(dir)
+  return(onedrive)
 }
 
 # get_onedrive()
@@ -1230,6 +1240,18 @@ get_onedrive <- function () {
 sortunique <- function (var) {
   
   return(sort(unique(var)))
-
+  
 }
 
+# -----------------------------------------------------------------------------------
+# %nonin%
+
+`%notin%` <- Negate(`%in%`)
+
+# -----------------------------------------------------------------------------------
+# loadrdata
+
+loadRData <- function(fileName){
+  load(fileName)
+  get(ls()[ls() != "fileName"])
+}

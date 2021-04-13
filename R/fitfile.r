@@ -4,8 +4,8 @@ library(FITfileR)    # devtools::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(leaflet)
 
-source("../prf/R/my utils.r")
-my.filepath <- "c:/users/marti/Dropbox/Hardloop"
+source("r/my utils.r")
+my.filepath <- file.path(get_dropbox(),"Hardloop")
 my.files <- list.files(path=file.path(get_dropbox(),"Hardloop"), pattern = "*.fit", full.names = TRUE)
 
 
@@ -18,9 +18,12 @@ for (i in 1:length(my.files)) {
   print(i)
   fn      <- basename(my.files[[i]])
   ff      <- readFitFile(my.files[[i]])
-  session <- bind_rows(session, getMessagesByType(ff, "session") %>% bind_rows() %>% mutate(filename=fn))
-  rec     <- bind_rows(rec, getMessagesByType(ff, "record") %>% bind_rows() %>% mutate(filename=fn))
-  lap     <- bind_rows(lap, getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()))
+  session <- bind_rows(session, getMessagesByType(ff, "session") %>% bind_rows() %>% 
+                         mutate(tmp=fn)) %>% separate(tmp, into=c("sporttype","filename"), sep="_")
+  rec     <- bind_rows(rec, getMessagesByType(ff, "record") %>% bind_rows() %>% 
+                         mutate(tmp=fn)) %>% separate(tmp, into=c("sporttype","filename"))
+  lap     <- bind_rows(lap, getMessagesByType(ff, "lap") %>% bind_rows() %>% 
+                       mutate(tmp=fn)) %>% separate(tmp, into=c("sporttype","filename"))
 }
 
 rec <-
@@ -49,19 +52,46 @@ load(file=file.path(my.filepath, "FITfileR", "session.RData"))
 load(file=file.path(my.filepath, "FITfileR", "rec.RData"))
 load(file=file.path(my.filepath, "FITfileR", "laps.RData"))
 tmp <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
+lap <-
+  lap %>% 
+  separate(filename, into=c("sporttype","filename"))
 
 i <- 221
 fn      <- basename(my.files[[i]])
 ff      <- readFitFile(my.files[[i]])
-l       <- getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()) %>% 
+
+# l       <- getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()) %>% 
+
+l <-
+  lap  %>% 
   mutate(km_hour = avg_speed * (60*60) / 1000) %>% 
   mutate(change  = km_hour / lag(km_hour) - 1) %>% 
-  mutate(changed = ifelse(abs(change) > 0.1, 1, 0)) %>% 
-  mutate(test    = lag(lap, default = vctrs::vec_cast(lap, integer())[1])) 
+  mutate(test    = ifelse(abs(change)>0.1,1,0)) %>% 
+  mutate(test    = ifelse(is.na(test),1, test)) %>% 
+  mutate(lap     = cumsum(test)) %>% 
+  group_by(filename, sport, sub_sport, lap) %>% 
+  summarise(
+    start_time = min(start_time),
+    end_time   = max(timestamp),
+    start_position_lat = dplyr::first(start_position_lat),
+    start_position_long = dplyr::first(start_position_long),
+    end_position_lat = dplyr::last(end_position_lat),
+    end_position_long = dplyr::last(end_position_long),
+    total_elapsed_time = sum(total_elapsed_time, na.rm=TRUE),
+    total_calories     = sum(total_calories, na.rm=TRUE),
+    avg_heart_rate = mean(avg_heart_rate, na.rm=TRUE),
+    max_heart_rate = max(max_heart_rate, na.rm=TRUE),
+    total_distance = sum(total_distance, na.rm=TRUE)
+  )
 
-  mutate(lap2    = ifelse(row_number()==1, 1, 0)) %>%  
-  mutate(lap2    = ifelse(row_number() >1, lag(lap2) + changed, lap2))   
-  
+
+l %>% 
+  ggplot() +
+  theme_bw() +
+  geom_segment(aes(x=start_position_long, xend=end_position_long,
+                   y=start_position_lat, yend=end_position_lat,
+                   colour=as.character(lap)))
+
 
 l %>% ggplot(aes(x=start_time, y=change)) + geom_line() + geom_point() +
   geom_hline(yintercept=0.15, linetype="dashed") +
