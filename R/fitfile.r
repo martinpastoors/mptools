@@ -4,42 +4,113 @@ library(FITfileR)    # devtools::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(leaflet)
 
+options(dplyr.summarise.inform = FALSE)
+
 source("r/my utils.r")
+
 my.filepath <- file.path(get_dropbox(),"Hardloop")
-my.files <- list.files(path=file.path(get_dropbox(),"Hardloop"), pattern = "*.fit", full.names = TRUE)
+my.files <- 
+  list.files(path=file.path(get_dropbox(),"Hardloop"), pattern = "*.fit", full.names = TRUE) %>% 
+  data.frame(stringsAsFactors = FALSE) %>% 
+  setNames("filename") %>% 
+  mutate(basename=basename(filename)) %>% 
+  separate(basename, into=c("sport","datetime"), remove=FALSE) %>% 
+  arrange(datetime) %>% 
+  dplyr::select(filename) %>% 
+  unlist()
 
+# load data frames
+session <- loadRData(file=file.path(my.filepath, "FITfileR", "session.RData"))
+rec     <- loadRData(file=file.path(my.filepath, "FITfileR", "rec.RData"))
+lap     <- loadRData(file=file.path(my.filepath, "FITfileR", "laps.RData"))
+tmp     <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
 
-# empty data frames
-session <- rec <- lap <- data.frame(stringsAsFactors = FALSE)
-
-# i <- 221
+# i <- 1
 # for (i in 190:200) {
 for (i in 1:length(my.files)) {
-  print(i)
+  
   fn      <- basename(my.files[[i]])
-  ff      <- readFitFile(my.files[[i]])
-  session <- bind_rows(session, getMessagesByType(ff, "session") %>% bind_rows() %>% 
-                         mutate(tmp=fn)) %>% separate(tmp, into=c("sporttype","filename"), sep="_")
-  rec     <- bind_rows(rec, getMessagesByType(ff, "record") %>% bind_rows() %>% 
-                         mutate(tmp=fn)) %>% separate(tmp, into=c("sporttype","filename"))
-  lap     <- bind_rows(lap, getMessagesByType(ff, "lap") %>% bind_rows() %>% 
-                       mutate(tmp=fn)) %>% separate(tmp, into=c("sporttype","filename"))
+  mytry<- try(readFitFile(my.files[[i]]), silent=TRUE)
+
+  if (class(mytry) != "try-error") {
+    
+    print(paste(i,my.files[[i]]))
+    
+    ff<- readFitFile(my.files[[i]])
+    
+    session <- 
+      session %>% 
+      
+      # check if run already exists; if so remove
+      filter(!fn %in% filename) %>% 
+      
+      # add data
+      bind_rows(getMessagesByType(ff, "session") %>% 
+                  bind_rows() %>% 
+                  mutate(filename=fn) %>%
+                  separate(filename, into=c("sporttype","fn"), sep="-|_", remove=FALSE) %>% 
+                  arrange(desc(start_time)) 
+                )  
+    
+    rec     <- 
+      rec %>% 
+      
+      # check if run already exists; if so remove
+      filter(!fn %in% filename) %>% 
+      
+      # add data
+      bind_rows(getMessagesByType(ff, "record") %>% 
+                  bind_rows() %>%
+                  mutate(filename=fn) %>%
+                  separate(filename, into=c("sporttype","fn"), sep="-|_", remove=FALSE) %>% 
+                  mutate(date=as.Date(timestamp)) %>% 
+                  arrange(desc(date),timestamp) 
+                )  
+    
+    lap     <- 
+      lap %>% 
+      
+      # check if run already exists; if so remove
+      filter(!fn %in% filename) %>% 
+      
+      # add data
+      bind_rows(getMessagesByType(ff, "lap") %>% 
+                  bind_rows() %>% 
+                  mutate(filename=fn) %>%
+                  separate(filename, into=c("sporttype","fn"), sep="-|_", remove=FALSE) %>% 
+                  mutate(date=as.Date(timestamp)) %>% 
+                  arrange(desc(date),timestamp) %>% 
+                  group_by(filename, sport, sub_sport) %>% 
+                  mutate(km_hour = avg_speed * (60*60) / 1000) %>% 
+                  mutate(change  = km_hour / lag(km_hour) - 1) %>% 
+                  mutate(test    = ifelse(abs(change)>0.1,1,0)) %>% 
+                  mutate(test    = ifelse(is.na(test),1, test)) %>% 
+                  mutate(lap     = cumsum(test)) %>% 
+                  group_by(filename, fn, date, sport, sub_sport, lap) %>% 
+                  summarise(
+                    start_time = min(start_time),
+                    end_time   = max(timestamp),
+                    start_position_lat = dplyr::first(start_position_lat),
+                    start_position_long = dplyr::first(start_position_long),
+                    end_position_lat = dplyr::last(end_position_lat),
+                    end_position_long = dplyr::last(end_position_long),
+                    total_elapsed_time = sum(total_elapsed_time, na.rm=TRUE),
+                    total_calories     = sum(total_calories, na.rm=TRUE),
+                    avg_heart_rate = mean(avg_heart_rate, na.rm=TRUE),
+                    max_heart_rate = max(max_heart_rate, na.rm=TRUE),
+                    total_distance = sum(total_distance, na.rm=TRUE),
+                    km_hour = mean(km_hour, na.rm=TRUE)
+                  )
+                ) 
+  } else {
+    print(paste(i,my.files[[i]], "File error"))
+  }
+  
+  # move file
+  file.copy(my.files[[i]], file.path(get_dropbox(),"Hardloop","verwerkt"))
+  file.remove(my.files[[i]])
 }
 
-rec <-
-  rec %>% 
-  drop_na(position_lat, position_long) %>% 
-  mutate(date=as.Date(timestamp)) %>% 
-  arrange(desc(date),timestamp) 
-
-session <-
-  session %>% 
-  arrange(desc(start_time)) 
-
-lap <-
-  lap %>% 
-  mutate(date=as.Date(timestamp)) %>% 
-  arrange(desc(date),timestamp) 
 
 # save files
 save(session, file=file.path(my.filepath, "FITfileR", "session.RData"))
@@ -47,139 +118,22 @@ save(rec,     file=file.path(my.filepath, "FITfileR", "rec.RData"))
 save(lap,     file=file.path(my.filepath, "FITfileR", "laps.RData"))
 writexl::write_xlsx(session, path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
 
-# load files
-load(file=file.path(my.filepath, "FITfileR", "session.RData"))
-load(file=file.path(my.filepath, "FITfileR", "rec.RData"))
-load(file=file.path(my.filepath, "FITfileR", "laps.RData"))
-tmp <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
-lap <-
-  lap %>% 
-  separate(filename, into=c("sporttype","filename"))
-
-i <- 221
-fn      <- basename(my.files[[i]])
-ff      <- readFitFile(my.files[[i]])
-
-# l       <- getMessagesByType(ff, "lap") %>% bind_rows() %>% mutate(filename=fn, lap=row_number()) %>% 
-
-l <-
-  lap  %>% 
-  mutate(km_hour = avg_speed * (60*60) / 1000) %>% 
-  mutate(change  = km_hour / lag(km_hour) - 1) %>% 
-  mutate(test    = ifelse(abs(change)>0.1,1,0)) %>% 
-  mutate(test    = ifelse(is.na(test),1, test)) %>% 
-  mutate(lap     = cumsum(test)) %>% 
-  group_by(filename, sport, sub_sport, lap) %>% 
-  summarise(
-    start_time = min(start_time),
-    end_time   = max(timestamp),
-    start_position_lat = dplyr::first(start_position_lat),
-    start_position_long = dplyr::first(start_position_long),
-    end_position_lat = dplyr::last(end_position_lat),
-    end_position_long = dplyr::last(end_position_long),
-    total_elapsed_time = sum(total_elapsed_time, na.rm=TRUE),
-    total_calories     = sum(total_calories, na.rm=TRUE),
-    avg_heart_rate = mean(avg_heart_rate, na.rm=TRUE),
-    max_heart_rate = max(max_heart_rate, na.rm=TRUE),
-    total_distance = sum(total_distance, na.rm=TRUE)
-  )
 
 
-l %>% 
-  ggplot() +
+# plot of specific tracks
+lap %>%
+  filter(date > as.Date("2021-04-01") ) %>% 
+  mutate(lap = stringr::str_pad(lap, width=2, pad="0")) %>% 
+  ggplot(aes(x=start_position_long, y=start_position_lat)) +
   theme_bw() +
-  geom_segment(aes(x=start_position_long, xend=end_position_long,
-                   y=start_position_lat, yend=end_position_lat,
-                   colour=as.character(lap)))
+  # geom_segment(aes(xend=end_position_long, yend=end_position_lat, colour=as.character(lap))) +
+  geom_segment(aes(xend=end_position_long, yend=end_position_lat, colour=as.character(lap), size=km_hour)) +
+  geom_point(aes(colour=lap)) +
+  scale_size(range = c(0, 2)) +
+  facet_wrap(~date)
 
 
-l %>% ggplot(aes(x=start_time, y=change)) + geom_line() + geom_point() +
-  geom_hline(yintercept=0.15, linetype="dashed") +
-  geom_hline(yintercept=-0.15, linetype="dashed")
-
-data <- tribble(
-  ~month, ~index,
-  "Jan",  100.5,
-  "Feb",  110.5,
-  "Mar",  99.8
-)
-
-data %>%
-  mutate(test = lag(index, default = vctrs::vec_cast(index, double())[2])) 
-
-data %>%
-  mutate(test = lag(index, default = vctrs::vec_cast(index, double())[1])) %>% 
-  mutate(excel_formula = index/lag(index, default = vctrs::vec_cast(index, double())[1])) %>% 
-  mutate(excel_formula = lag(excel_formula, default = 1) * excel_formula * 100) %>% 
-  print.data.frame()
-
-attr(l$avg_speed, "units")
-16.666666667 / l$avg_speed
-l$avg_speed * (60*60) / 1000
-
-ggmap::get_map(source = 'stamen')t1 <-
-  lap %>% 
-  filter(date == as.Date("2021-04-11")) %>% 
-  group_by
-
-glimpse(rec)
-range(rec$position_long, na.rm=TRUE)
-
-rec %>% 
-  filter(position_long < 179) %>% 
-  ggplot(aes(x=position_long, y=position_lat)) +
-  theme_bw() +
-  theme(legend.position = "none") +
-  geom_point(aes(colour=filename))
-
-for (nm in listMessageTypes())
-session %>% 
-  dplyr::select(start_position_long, start_position_lat) %>% 
-  as.matrix() %>%
-  leaflet(  ) %>%
-  addTiles() %>%
-  leaflet::addMarkers( ) 
-  # leaflet::addPolygons()
-
-rec %>% 
-  dplyr::select(position_long, position_lat) %>% 
-  as.matrix() %>%
-  leaflet(  ) %>%
-  addTiles() %>%
-  leaflet::addPolylines()
-
-rec %>%
-  filter(grepl("run",filename)) %>% 
-  select(timestamp, heart_rate, filename) %>%
-  ggplot() + 
-  theme_bw() +
-  theme(legend.position = "none") +
-  geom_line(aes(x = timestamp, y = heart_rate, col = filename)) +
-  facet_wrap(~filename, scales="free_x")
-
-save(df, file=file.path(my.filepath, "meta.RData"))
-writexl::write_xlsx(df, path=file.path(my.filepath,"meta.xlsx"))
-
-rec <- data.frame(stringsAsFactors = FALSE)
-# for (i in 1:length(my.files)) {
-for (i in 190:210) {
-  print(paste(i, length(records(readFitFile(my.files[[i]])))))
-  # df <- bind_rows(df, records(readFitFile(my.files[[i]])) %>% bind_rows() )  
-}
-session(readFitFile(my.files[[200]])) %>% bind_rows() %>% View()
-
-laps(readFitFile(my.files[[200]])) %>% bind_rows() %>% View()
-hrv(readFitFile(my.files[[200]])) %>% bind_rows() %>% View()
-getMessagesByType(readFitFile(my.files[[200]]), "lap") %>% bind_rows() %>% View()
-records(readFitFile(my.files[[i]]))[[2]] %>% View()
-length(records(readFitFile((my.files[[1]]))))
-        
-setwd("C:/Users/marti/Dropbox/Hardloop")
-
-
-
-
-
+# ==================================================================
 
 
 library(trackeR)
