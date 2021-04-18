@@ -20,10 +20,11 @@ my.files <-
   unlist()
 
 # load data frames
-session <- loadRData(file=file.path(my.filepath, "FITfileR", "session.RData"))
-rec     <- loadRData(file=file.path(my.filepath, "FITfileR", "rec.RData"))
-lap     <- loadRData(file=file.path(my.filepath, "FITfileR", "laps.RData"))
-tmp     <- readxl::read_xlsx(path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
+
+session <- loadRData(file=file.path(my.filepath, "rdata", "session.RData"))
+rec     <- loadRData(file=file.path(my.filepath, "rdata", "rec.RData"))
+lap     <- loadRData(file=file.path(my.filepath, "rdata", "laps.RData"))
+tmp     <- readxl::read_xlsx(path=file.path(my.filepath,"excel","sessions.xlsx"))
 
 # i <- 1
 # for (i in 190:200) {
@@ -113,10 +114,10 @@ for (i in 1:length(my.files)) {
 
 
 # save files
-save(session, file=file.path(my.filepath, "FITfileR", "session.RData"))
-save(rec,     file=file.path(my.filepath, "FITfileR", "rec.RData"))
-save(lap,     file=file.path(my.filepath, "FITfileR", "laps.RData"))
-writexl::write_xlsx(session, path=file.path(my.filepath,"FITfileR","sessions.xlsx"))
+save(session, file=file.path(my.filepath, "rdata", "session.RData"))
+save(rec,     file=file.path(my.filepath, "rdata", "rec.RData"))
+save(lap,     file=file.path(my.filepath, "rdata", "laps.RData"))
+writexl::write_xlsx(session, path=file.path(my.filepath,"excel","sessions.xlsx"))
 
 
 
