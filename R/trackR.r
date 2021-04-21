@@ -48,7 +48,7 @@ tomtom_hr <-
   mutate(hrzone = cut(heart_rate, breaks=c(0,125,145,160,175,300), right=TRUE)) %>% 
   group_by(date, filename, hrzone) %>% 
   summarise(duration = sum(time2, na.rm=TRUE)) %>% 
-  mutate(time = hms::as.hms(duration))
+  mutate(time = hms::as_hms(duration))
 
 tomtom_hr %>% 
   filter(grepl("running",filename)) %>% 
@@ -77,18 +77,42 @@ save(tomtom_session, file=file.path(my.filepath, "rdata", "tomtom_session.RData"
 
 # =================================================================================================
 
-# Read old sporttracks information; the gpx file does not have heartrate; how to read the tcx file?
+# Read old sporttracks information
 
 # =================================================================================================
 
-t <- trackeR::readGPX(file.path(my.filepath,"SportTracks export 20200403.gpx"))
+sporttracks_gps <-
+  # trackeR::readTCX(file.path(my.filepath,"SportTracks export 20200403.tcx")) %>% 
+  sporttracks_gps %>% 
+  filter(time != as.Date("0001-01-01")) %>% 
+  arrange(time) %>% 
+  mutate(date=lubridate::date(time)) %>% 
+  distinct() %>% 
+  group_by(date) %>% 
+  mutate(
+    dd = ifelse(distance==0, 0, distance - lag(distance)),
+    dt = ifelse(distance==0, 0, as.numeric(time - lag(time)))
+  )
 
-filepath <- system.file("extdata/tcx/", "2013-06-01-183220.TCX.gz", package = "trackeR")
-setwd("c:/users/marti/Dropbox/Hardloop")
-filepath <- system.file("run-20210110T083628.tcx", package = "trackeR")
-runDF <- readTCX(file = filepath, timezone = "GMT")
+sporttracks_gps_check <- sporttracks_gps %>% filter(lubridate::year(date) > 2020)
+sporttracks_gps       <- sporttracks_gps %>% filter(lubridate::year(date) <= 2020)
 
-# data(runs, package = "trackeR")
-plot(runDF, session = 1:5, what = c("speed", "pace", "altitude"))
-plot(runDF, session = 1:5)
-plot(runDF)
+sporttracks_hr <-
+  sporttracks_gps %>% 
+  group_by(date) %>% 
+  mutate(hrzone = cut(heart_rate, breaks=c(0,125,145,160,175,300), right=TRUE)) %>% 
+  group_by(date, hrzone) %>% 
+  summarise(
+    duration = sum(dt, na.rm=TRUE),
+    distance = sum(dd, na.rm=TRUE)) %>% 
+  mutate(time = hms::as_hms(duration))
+
+sporttracks_hr %>% 
+  ggplot(aes(x=date, y=time)) +
+  theme_publication() +
+  geom_bar(aes(fill=hrzone), stat="identity")
+
+save(sporttracks_gps, file=file.path(my.filepath, "rdata", "sporttracks_gps.RData"))
+save(sporttracks_gps_check, file=file.path(my.filepath, "rdata", "sporttracks_gps_check.RData"))
+save(sporttracks_hr, file=file.path(my.filepath, "rdata", "sporttracks_hr.RData"))
+
