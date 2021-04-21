@@ -117,6 +117,7 @@ for (i in 1:length(my.files)) {
 save(session, file=file.path(my.filepath, "rdata", "session.RData"))
 save(rec,     file=file.path(my.filepath, "rdata", "rec.RData"))
 save(lap,     file=file.path(my.filepath, "rdata", "laps.RData"))
+
 writexl::write_xlsx(session, path=file.path(my.filepath,"excel","sessions.xlsx"))
 
 
