@@ -1,6 +1,7 @@
 # Eenmalig uitvoeren:
 # install.packages("cbsodataR")
 
+
 library(cbsodataR)
 library(tidyverse)
 
@@ -8,11 +9,16 @@ library(tidyverse)
 toc <- cbs_get_toc()
 # View(toc)
 # toc %>% filter(grepl("landbouw", tolower(Title))) %>% View()
+toc %>% filter(grepl("personenauto", tolower(Title))) %>% View()
 
 # Downloaden van gehele tabel (kan een halve minuut duren)
 tabel    <- "80781ned"
-dwnld    <- cbs_get_data(tabel) 
-metadata <- cbs_get_meta(tabel)
+dwnld    <- 
+  cbs_get_data(tabel)  %>% 
+  cbs_add_label_columns() %>% 
+  cbs_add_date_column() 
+metadata <- 
+  cbs_get_meta(tabel)
 
 # View(metadata$TableInfos)
 # View(metadata$DataProperties)
@@ -61,22 +67,22 @@ data <-
   dwnld %>% 
   
   # add naam van gemeente
-  left_join(metadata$RegioS, by=c("RegioS"="Key")) %>% 
-  rename(naam = Title) %>% 
+  # left_join(metadata$RegioS, by=c("RegioS"="Key")) %>% 
+  rename(naam = RegioS_label) %>% 
   
   # filter op namenn
   filter(naam %in% my_names) %>% 
   
   # Make long
   ungroup() %>% 
-  pivot_longer(names_to="variabele", values_to="data", 3:151) %>% 
-  dplyr::select(-Description) %>% 
+  pivot_longer(names_to="variabele", values_to="data", 7:155) %>% 
+  # dplyr::select(-Description) %>% 
   
   # add beschrijving van variabelen
   left_join(metadata_df, by=c("variabele"="Key")) %>% 
   
   # add jaar
-  mutate(jaar = as.integer(substr(Perioden, 1, 4))) %>% 
+  mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
   
   group_by(naam, variabele, jaar) %>% 
   separate(variabele, into=c("var", "varnr"), sep="_")
@@ -210,3 +216,66 @@ buurt2020meta <- cbs_get_meta(tabel)
 
 View(buurt2020meta$DataProperties)
 
+
+# Downloaden van gehele tabel (kan een halve minuut duren)
+tabel    <- "80428ned"
+dwnld    <- 
+  cbs_get_data(tabel)  %>% 
+  cbs_add_label_columns() 
+metadata <- 
+  cbs_get_meta(tabel)
+
+# View(metadata$TableInfos)
+# View(metadata$DataProperties)
+# View(metadata$CategoryGroups)
+# View(metadata$RegioS)
+# View(metadata$Perioden)
+# names(dwnld)
+
+
+extra <- 
+  readxl::read_xlsx("C:/Users/marti/Dropbox/CBS 2001 motorvoertuigenpark.xlsx") %>% 
+  pivot_longer(names_to = "Brandstofsoort_label", values_to = "value", totaal:lpg) %>% 
+  filter(Brandstofsoort_label != "totaal") %>% 
+  mutate(variable = "autos") %>% 
+  filter(jaar < 2001)
+  
+data <-
+  dwnld %>% 
+  filter(LeeftijdVoertuig_label == "Totaal leeftijd voertuig") %>% 
+  filter(Eigendomssituatie_label == "Totaal") %>% 
+  filter(Brandstofsoort_label != "Totaal") %>% 
+  mutate(Brandstofsoort_label = tolower(Brandstofsoort_label)) %>% 
+  mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
+  group_by(jaar, Brandstofsoort_label) %>% 
+  summarise(
+    km = sum(KilometersDoorNederlandseVoertuigen_2, na.rm=TRUE),
+    kminnederland = sum(KilometersInNederland_5, na.rm=TRUE),
+    autos = sum(NederlandsePersonenautoSInGebruik_10, na.rm=TRUE)) %>% 
+  pivot_longer(names_to = "variable", values_to = "value", km:autos) %>% 
+  mutate(Brandstofsoort_label = tolower(Brandstofsoort_label)) %>% 
+  mutate(Brandstofsoort_label = ifelse(grepl("benzine", Brandstofsoort_label), "benzine", Brandstofsoort_label)) %>% 
+  filter(value > 0) %>% 
+  bind_rows(extra)
+
+  # bind_rows(
+  #   data.frame(
+  #     variable = rep("autos",3),
+  #     jaar = c(1986, 1986, 1986),
+  #     Brandstofsoort_label = c("Benzine/overige", "Diesel","LPG"),
+  #     value = c(3741000, 380000, 520000)
+  #   )) %>% 
+  # bind_rows(
+  #   data.frame(
+  #     variable = rep("autos",3),
+  #     jaar = c(1995, 1995, 1995),
+  #     Brandstofsoort_label = c("Benzine/overige", "Diesel","LPG"),
+  #     value = c(4639000, 614000, 380000)
+  #   )) 
+  
+
+data %>% 
+  ggplot(aes(x=jaar, y=value)) +
+  theme_bw() +
+  geom_bar(aes(fill=Brandstofsoort_label), stat="identity") +
+  facet_wrap(~variable, scales="free_y")
