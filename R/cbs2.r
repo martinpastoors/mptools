@@ -5,6 +5,8 @@
 library(cbsodataR)
 library(tidyverse)
 
+source("R/my utils.r")
+
 # Downloaden van tabeloverzicht
 toc <- cbs_get_toc()
 # View(toc)
@@ -14,7 +16,7 @@ toc %>% filter(grepl("broedvogel", tolower(Title))) %>% View()
 
 # Downloaden van gehele tabel (kan een halve minuut duren)
 tabel    <- "80781ned"
-tabel    <- "84498NED" # broedvogel index
+# tabel    <- "84498NED" # broedvogel index
 dwnld    <- 
   cbs_get_data(tabel)  %>% 
   cbs_add_label_columns() %>% 
@@ -22,7 +24,8 @@ dwnld    <-
 metadata <- 
   cbs_get_meta(tabel)
 
-
+save(dwnld, file="cbs80781ned.RData")
+load(file="cbs80781ned.RData")
 
 # View(metadata$TableInfos)
 # View(metadata$DataProperties)
@@ -30,37 +33,39 @@ metadata <-
 # View(metadata$RegioS)
 # View(metadata$Perioden)
 
-# Hoofdgroepen
+# Onderwerpen
 t1 <- 
   metadata$DataProperties %>% 
-  dplyr::select(odata.type, ID, Position, ParentID, Title, Description) %>% 
-  filter(odata.type == "Cbs.OData.TopicGroup") %>% 
-  rename(hoofdgroep=Title, hoofdgroep2 = Description) %>% 
-  dplyr::select(-Position, -odata.type)
+  filter(Type == "Topic", ID %in% 111:196) %>% 
+  dplyr::select(ID, Position, ParentID, Key, Topic=Title, DescriptionTopic=Description, Unit) 
 
-# Deelgroepen
+# Hoofdgroep
 t2 <- 
   metadata$DataProperties %>% 
-  dplyr::select(Key, ID, Position, ParentID, Title, Description, Unit) %>% 
-  filter(!is.na(Position) & !is.na(ID)) %>% 
-  filter(!Key %in% c("RegioS", "Perioden") ) %>% 
-  # rename(subgroep=Title, subgroep2 = Description) %>% 
-  dplyr::select(-ID, -Position)
+  filter(Type == "TopicGroup", ID %in% 111:196, is.na(Position), is.na(ParentID)) %>% 
+  dplyr::select(hoofdID=ID, Hoofdgroep=Title, DescriptionHoofdgroep=Description) 
 
-# Metadata uitgeklapt
+# Subgroepen
+t3 <-
+  metadata$DataProperties %>% 
+  filter(Type == "TopicGroup", ID %in% 111:196, is.na(Position), !is.na(ParentID)) %>% 
+  filter(!ParentID %in% .$ID) %>% 
+  dplyr::select(subgroupID=ID, ParentID, Subgroep=Title, DescriptionSubgroep=Description) 
+
+# SubSubgroepen
+t4 <-
+  metadata$DataProperties %>% 
+  filter(Type == "TopicGroup", ID %in% 111:196, is.na(Position), !is.na(ParentID)) %>% 
+  filter(ParentID %in% .$ID) %>% 
+  dplyr::select(subsubgroupID=ID, ParentID, SubSubgroep=Title, DescriptionSubSubgroep=Description) 
+
 metadata_df <-
   t2 %>% 
-  left_join(t1, by=c("ParentID"="ID")) %>% 
-  dplyr::select(-ParentID) %>% 
-  rename(
-    ParentID = ParentID.y,
-    subgroep = hoofdgroep,
-    subgroep_desc = hoofdgroep2) %>% 
-  left_join(dplyr::select(t1,
-                          -ParentID), 
-            by=c("ParentID"="ID")) %>% 
-  rename(hoofdgroep_desc = hoofdgroep2)
-  
+  left_join(t3, by=c("hoofdID"="ParentID")) %>% 
+  left_join(t4, by=c("subgroupID"="ParentID")) %>%  
+  left_join(t1, by=c("subsubgroupID" = "ParentID"))
+
+
 my_names <- c("Westerkwartier", "Zuidhorn", "Leek", "Marum", "Grootegast")
 # my_names <- c("Midden-Drenthe") 
 
@@ -85,36 +90,69 @@ data <-
   # add beschrijving van variabelen
   left_join(metadata_df, by=c("variabele"="Key")) %>% 
   
+  # TEMP
+  drop_na(hoofdID) %>% 
+  
   # add jaar
   mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
   
   group_by(naam, variabele, jaar) %>% 
-  separate(variabele, into=c("var", "varnr"), sep="_")
+  separate(variabele, into=c("var", "varnr"), sep="_") %>% 
+  
+  lowcase()
 
-data %>% filter(varnr==186) %>% View()
 
-# TEMP
-# unique(data$hoofdgroep)
-# data %>% filter(hoofdgroep=="Rundvee") %>% View()
-# dwnld %>% 
-#   left_join(metadata$RegioS, by=c("RegioS"="Key")) %>% 
-#   rename(naam = Title) %>% 
-#   filter(naam %in% my_names) %>%
-#   View()
-# data %>% filter(varnr=="90") %>% View()
 
 # alle dieren
 data %>% 
   filter(
-    tolower(hoofdgroep) == "aantal dieren",
+    tolower(subgroep) == "aantal dieren",
     grepl("totaal", tolower(var) )) %>% 
-  mutate(var2 = paste(subgroep, var,Unit,sep= "_")) %>% 
+  mutate(var = gsub("Totaal","", var)) %>% 
   # View()
 
   ggplot(aes(x=jaar, y=data)) +
   theme_bw() +
   geom_bar(aes(fill=naam), stat="identity") +
-  facet_wrap(~var2, scales="free_y")
+  labs(y="", x="", title="Aantal dieren") +
+  facet_wrap(~var, scales="free_y")
+
+#bedrijven
+data %>% 
+  filter(
+    tolower(subgroep) == "aantal bedrijven",
+    grepl("totaal", tolower(var) )) %>% 
+  mutate(var = gsub("Totaal","", var)) %>% 
+  # View()
+  
+  ggplot(aes(x=jaar, y=data)) +
+  theme_bw() +
+  geom_bar(aes(fill=naam), stat="identity") +
+  labs(y="", x="", title="Aantal bedrijven") +
+  facet_wrap(~var, scales="free_y")
+
+# aantal dieren per bedrijf
+data %>% 
+  filter(
+    tolower(subgroep) %in% c("aantal bedrijven", "aantal dieren"),
+    grepl("totaal", tolower(var) )) %>% 
+  mutate(var = gsub("Totaal","", var)) %>% 
+  mutate(subgroep = gsub("Aantal ","", subgroep)) %>% 
+  
+  group_by(var, data, jaar, subgroep) %>%
+  summarise(data = sum(data, na.rm=TRUE)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "subgroep", values_from = "data") %>% 
+  mutate(dieren_bedrijf = dieren/bedrijven) %>% 
+  # View()
+  
+  ggplot(aes(x=jaar, y=dieren_bedrijf)) +
+  theme_bw() +
+  geom_bar(stat="identity") +
+  labs(y="", x="", title="Dieren per bedrijf") +
+  facet_wrap(~var, scales="free_y")
+
+data %>% ungroup() %>% filter(tolower(subgroep)=="aantal dieren") %>% distinct(topic) %>% View()
 
 data %>% 
   filter(
