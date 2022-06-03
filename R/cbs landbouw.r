@@ -19,6 +19,7 @@ toc %>% filter(grepl("landbouw", tolower(Title))) %>% View()
 # Downloaden van gehele tabel (kan een halve minuut duren)
 tabel    <- "80781ned"
 # tabel    <- "84498NED" # broedvogel index
+
 dwnld    <- 
   cbs_get_data(tabel)  %>% 
   cbs_add_label_columns() %>% 
@@ -47,6 +48,18 @@ t2 <-
   filter(Type == "TopicGroup", !is.na(ParentID)) %>% 
   dplyr::select(ID, ParentID, Title, Description) 
 
+
+topic <-
+  metadata$DataProperties %>% 
+  filter(Type == "Topic") %>% 
+  filter(ID >= 161) %>% 
+  dplyr::select(Key, Topic=Title, DescriptionTopic=Description, Unit, ParentID) 
+
+t <-
+  topic %>% 
+  left_join(t2, by=c("ParentID"="ID" )) %>% 
+  left_join(t2, by=c("ParentID.y" = "ID"))
+
 # Samengevoegd
 t <-
   t1 %>% 
@@ -63,7 +76,11 @@ t <-
   
   full_join(t2, 
             by=c("subSubID"="ParentID")) %>% 
-  drop_na(Hoofdgroep)
+  drop_na(Hoofdgroep) %>% 
+  
+  left_join(topic,
+            by=c("subID"="ParentID")) %>% 
+  
 
 metadata_df <-
   topic %>% 
