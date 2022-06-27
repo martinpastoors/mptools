@@ -11,14 +11,17 @@ source("R/my utils.r")
 # Downloaden van tabeloverzicht
 toc <- cbs_get_toc()
 # View(toc)
-# toc %>% filter(grepl("landbouw", tolower(Title))) %>% View()
+
+toc %>% filter(grepl("landbouw", tolower(Title))) %>% View()
 # toc %>% filter(grepl("personenauto", tolower(Title))) %>% View()
 # toc %>% filter(grepl("broedvogel", tolower(Title))) %>% View()
-toc %>% filter(grepl("bodem", tolower(Title))) %>% View()
+# toc %>% filter(grepl("bodem", tolower(Title))) %>% View()
 
 # Downloaden van gehele tabel (kan een halve minuut duren)
 tabel    <- "80781ned"
 # tabel    <- "84498NED" # broedvogel index
+tabel <- "71904ned" # landbouw vanaf 1851
+
 dwnld    <- 
   cbs_get_data(tabel)  %>% 
   cbs_add_label_columns() %>% 
@@ -27,7 +30,7 @@ metadata <-
   cbs_get_meta(tabel)
 
 save(dwnld, metadata, file="cbs80781ned.RData")
-load(file="cbs80781ned.RData")
+# load(file="cbs80781ned.RData")
 
 # View(metadata$TableInfos)
 # View(metadata$DataProperties)
@@ -35,90 +38,225 @@ load(file="cbs80781ned.RData")
 # View(metadata$RegioS)
 # View(metadata$Perioden)
 
-# Onderwerpen
-t1 <- 
-  metadata$DataProperties %>% 
-  # filter(Type == "Topic", ID %in% 111:196) %>% 
-  filter(Type == "Topic") %>% 
-  dplyr::select(ID, Position, ParentID, Key, Topic=Title, DescriptionTopic=Description, Unit) 
+properties <- metadata$DataProperties
 
-# Hoofdgroep
-t2 <- 
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), is.na(ParentID)) %>% 
-  dplyr::select(hoofdID=ID, Hoofdgroep=Title, DescriptionHoofdgroep=Description) 
-
-# Subgroepen
-t3 <-
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), !is.na(ParentID)) %>% 
-  filter(!ParentID %in% .$ID) %>% 
-  dplyr::select(subgroupID=ID, ParentID, Subgroep=Title, DescriptionSubgroep=Description) 
-
-# SubSubgroepen
-t4 <-
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), !is.na(ParentID)) %>% 
-  filter(ParentID %in% .$ID) %>% 
-  dplyr::select(subsubgroupID=ID, ParentID, SubSubgroep=Title, DescriptionSubSubgroep=Description) 
+topicgroups <- 
+  properties %>% 
+  filter(Type == "TopicGroup") %>% 
+  dplyr::select(ID, ParentID, Title_tg=Title, Description_tg=Description)
 
 metadata_df <-
-  t2 %>% 
-  left_join(t3, by=c("hoofdID"="ParentID")) %>% 
-  left_join(t4, by=c("subgroupID"="ParentID")) %>%  
-  left_join(t1, by=c("subsubgroupID" = "ParentID"))
-
-
-my_names <- c("Westerkwartier", "Zuidhorn", "Leek", "Marum", "Grootegast")
-# my_names <- c("Midden-Drenthe") 
-
-
+  properties %>% 
+  filter(Type == "Topic") %>% 
+  dplyr::select(Key, ID, Position, ParentID, Variable=Title, Description, Unit) %>% 
   
+  # level1
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_1=Title_tg, Description_1 = Description_tg) %>% 
+
+  # level2
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_2=Title_tg, Description_2 = Description_tg) %>% 
+
+  # level3
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_3=Title_tg, Description_3 = Description_tg) %>% 
+  
+  # level4
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, -ParentID.y, Title_4=Title_tg, Description_4 = Description_tg) %>% 
+  
+  tidyr::pivot_longer(names_to = "tempvar", values_to = "data", Title_1:Description_4) %>% 
+  drop_na(data) %>% 
+  tidyr::separate(tempvar, into=c("text","id"), sep="_") %>% 
+  mutate(id = as.integer(id) ) %>% 
+  
+  group_by(Key, text) %>% 
+  mutate(id = abs(id - max(id, na.rm=TRUE))) %>% 
+  
+  tidyr::unite("tempvar", text:id, sep="_") %>% 
+  
+  pivot_wider(names_from = tempvar, values_from = data) %>% 
+  rename(hoofdcategorie = Title_0, hoofdcategorie_desc = Description_0) %>% 
+  rename(unittype       = Title_1, unittype_desc       = Description_1) %>% 
+  {if("Title2" %in% names(.)) rename(subcategorie   = Title_2, subcategorie_desc   = Description_2) else .} %>% 
+  {if("Title3" %in% names(.)) rename(subsubcategorie= Title_3) else .}
+  
+
+
 # dataset samenstellen
 data <-
   dwnld %>% 
   
   # add naam van gemeente
   # left_join(metadata$RegioS, by=c("RegioS"="Key")) %>% 
-  rename(naam = RegioS_label) %>% 
+  # rename(naam = RegioS_label) %>% 
   
   # filter op namenn
-  filter(naam %in% my_names) %>% 
+  # filter(naam %in% my_names) %>% 
   
   # Make long
   ungroup() %>% 
-  pivot_longer(names_to="variabele", values_to="data", 7:155) %>% 
+  pivot_longer(names_to="Key", values_to="data", 5:204) %>% 
   # dplyr::select(-Description) %>% 
   
   # add beschrijving van variabelen
-  left_join(metadata_df, by=c("variabele"="Key")) %>% 
-  
-  # TEMP
-  drop_na(hoofdID) %>% 
+  left_join(metadata_df, by=c("Key"="Key")) %>% 
   
   # add jaar
   mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
   
-  group_by(naam, variabele, jaar) %>% 
-  separate(variabele, into=c("var", "varnr"), sep="_") %>% 
-  
   lowcase()
 
 
+unique(data$unittype)
+unique(data$variable)
+data %>% filter(grepl("bedrij", tolower(variable))) %>% View()
+data %>% filter(grepl("melk", tolower(variable))) %>% View()
+data %>% filter(grepl("vlees", tolower(variable))) %>% View()
 
 # alle dieren
 data %>% 
-  filter(
-    tolower(subgroep) == "aantal dieren",
-    grepl("totaal", tolower(var) )) %>% 
-  mutate(var = gsub("Totaal","", var)) %>% 
-  # View()
+  filter( !is.na(data)) %>% 
+  filter(tolower(unittype) == "runderen" | 
+         variable == "Melk afgeleverd aan fabrieken"|
+         variable == "Totale melkproductie"|
+         variable == "Bedrijven met rundvee") %>% 
+  # filter(tolower(variable) == "totale melkproductie", !is.na(data)) %>% 
+  # filter(tolower(variable) == "kalfsvlees", !is.na(data)) %>% 
+  mutate(hoofdcategorie = ifelse(variable == "Totale melkproductie", "Productie1", hoofdcategorie)) %>% 
+  mutate(hoofdcategorie = ifelse(variable == "Melk afgeleverd aan fabrieken", "Productie2", hoofdcategorie)) %>% 
+  
+  filter(jaar >= 1950) %>% 
+  ggplot(aes(x=jaar, y=data)) +
+  theme_bw() +
+  geom_bar(aes(fill=variable), stat="identity") +
+  labs(y="", x="") +
+  facet_wrap(~hoofdcategorie, scales = "free_y")
+
+data %>% 
+  filter( !is.na(data)) %>% 
+  filter(tolower(unittype) == "runderen" | 
+           variable == "Melk afgeleverd aan fabrieken"|
+           variable == "Bedrijven met rundvee") %>% 
+  # filter(tolower(variable) == "totale melkproductie", !is.na(data)) %>% 
+  # filter(tolower(variable) == "kalfsvlees", !is.na(data)) %>% 
+
+  filter(jaar >= 1950) %>% 
+  ggplot(aes(x=jaar, y=data)) +
+  theme_bw() +
+  geom_bar(aes(fill=variable), stat="identity") +
+  labs(y="", x="") +
+  facet_wrap(~hoofdcategorie, scales = "free_y")
+
+# overzicht bedrijven, rundvee en melk geleverd aan fabrieken
+data %>% 
+  filter( !is.na(data)) %>% 
+  filter(tolower(unittype) == "runderen" | 
+           variable == "Melk afgeleverd aan fabrieken"|
+           variable == "Bedrijven met rundvee") %>% 
+  mutate(hoofdcategorie = paste(hoofdcategorie, unit)) %>% 
+  mutate(hoofdcategorie = ifelse(variable=="Melk afgeleverd aan fabrieken", paste(variable, unit), hoofdcategorie)) %>% 
+  mutate(hoofdcategorie = ifelse(variable=="Bedrijven met rundvee", paste(variable, unit), hoofdcategorie)) %>% 
+  mutate(variable = ifelse(variable %in% c("Melk afgeleverd aan fabrieken","Bedrijven met rundvee"), NA, variable)) %>% 
+  filter(jaar >= 1950) %>% 
+  ggplot(aes(x=jaar, y=data)) +
+  theme_bw() +
+  geom_bar(aes(fill=variable), stat="identity") +
+  labs(y="", x="") +
+  facet_wrap(~hoofdcategorie, scales = "free_y")
+
+# overzicht (melk) dieren per bedrijf en melk productie per bedrijf
+t <-
+  data %>% 
+  filter( !is.na(data)) %>% 
+  filter(tolower(unittype) == "runderen" ) %>%
+  filter(grepl("^melk", tolower(variable))) %>% 
+  group_by(jaar) %>% 
+  mutate(data = 1000 * data) %>% 
+  summarise(data = sum(data, na.rm=TRUE)) %>% 
+  mutate(variable = "melkvee") %>% 
+  
+  # melkproductie
+  bind_rows(
+    data %>% 
+    filter(variable == "Melk afgeleverd aan fabrieken") %>% 
+    filter( !is.na(data)) %>% 
+    mutate(data = 1000000 * data) %>% 
+    group_by(jaar) %>% 
+    summarise(data = sum(data, na.rm=TRUE)) %>% 
+    mutate(variable = "melkproductie")
+  ) %>% 
+  
+  # rundvee bedrijven
+  bind_rows(
+    data %>% 
+      filter(variable == "Bedrijven met rundvee") %>% 
+      filter( !is.na(data)) %>% 
+      mutate(data = 1000 * data) %>% 
+      group_by(jaar) %>% 
+      summarise(data = sum(data, na.rm=TRUE)) %>% 
+      mutate(variable = "bedrijven")
+  ) %>% 
+  
+  filter(jaar >= 1950) %>% 
+  filter(data > 0) %>% 
+  pivot_wider(names_from = variable, values_from = data) %>% 
+  
+  mutate(dieren_bedrijf = melkvee / bedrijven) %>% 
+  mutate(productie_bedrijf = melkproductie / bedrijven) %>% 
+  mutate(productie_koe     = melkproductie / melkvee) 
+
+t2a <-
+  t %>% 
+  pivot_longer(names_to = "variable", values_to = "data", melkvee:productie_koe) %>% 
+  mutate(decade = cut(jaar, breaks=seq(1950,2020,10), include.lowest=TRUE, dig.lab=10)) %>% 
+  mutate(decade = as.character(decade)) %>% 
+  mutate(decade = gsub("\\[|\\(|\\]","", decade)) %>% 
+  mutate(decade = ifelse(is.na(decade), "2020", decade)) %>% 
+  group_by(decade, variable) %>% 
+  summarise(data = mean(data, na.rm=TRUE))
+
+t2 <-
+  t2a %>% 
+  left_join(
+    t2a %>% group_by(variable) %>% filter(row_number()==1) %>% dplyr::select(variable, first=data), 
+    by="variable"
+  ) %>% 
+  mutate(index = data/first) %>% 
+  mutate(perc  = (data/first-1))
+
+t %>% 
+  dplyr::select(jaar, dieren_bedrijf, productie_bedrijf, productie_koe) %>% 
+  pivot_longer(names_to = "variable", values_to = "data", dieren_bedrijf:productie_koe) %>% 
 
   ggplot(aes(x=jaar, y=data)) +
   theme_bw() +
-  geom_bar(aes(fill=naam), stat="identity") +
-  labs(y="", x="", title="Aantal dieren") +
-  facet_wrap(~var, scales="free_y")
+  geom_bar(aes(fill=variable), stat="identity") +
+  labs(y="", x="") +
+  facet_wrap(~variable, scales = "free_y")
+
+t2 %>% 
+  ungroup() %>% 
+  separate(decade, into=c("start", "end"), sep=",") %>% 
+  mutate(across(c(start, end), as.numeric)) %>% 
+  mutate(end = ifelse(is.na(end), start+10, end)) %>% 
+  group_by(variable) %>% 
+  mutate(index2 = lag(index)) %>% 
+  # View()
+
+  ggplot(aes(x=start)) +
+  theme_bw() +
+  theme(legend.position = "none") +
+  # geom_point(aes(colour=variable)) +
+  geom_segment(aes(xstart=start, xend=start, y=index, yend=index2), colour="gray", size=0.2) +
+  geom_segment(aes(xstart=start, xend=end, y=index, yend=index, colour=variable), size=1.2) +
+  # geom_segment(aes(xstart=start, xend=end, ystart=perc, yend=perc, colour=variable), size=1.2) +
+  labs(y="", x="") +
+  expand_limits(y=0) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n=10)) +
+  # scale_y_continuous(labels = scales::percent_format(accuracy=1)) +
+  facet_wrap(~variable, scales = "free_y")
 
 #bedrijven
 data %>% 

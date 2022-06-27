@@ -36,105 +36,56 @@ save(dwnld, metadata, file="cbs80781ned.RData")
 # View(metadata$RegioS)
 # View(metadata$Perioden)
 
-# Hoofdgroep
-t1 <- 
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(ParentID)) %>% 
-  dplyr::select(hoofdID=ID, Hoofdgroep=Title, DescriptionHoofdgroep=Description) 
+properties <- metadata$DataProperties
 
-# Subgroepen
-t2 <- 
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", !is.na(ParentID)) %>% 
-  dplyr::select(ID, ParentID, Title, Description) 
-
-
-topic <-
-  metadata$DataProperties %>% 
-  filter(Type == "Topic") %>% 
-  filter(ID >= 161) %>% 
-  dplyr::select(Key, Topic=Title, DescriptionTopic=Description, Unit, ParentID) 
-
-t <-
-  topic %>% 
-  left_join(t2, by=c("ParentID"="ID" )) %>% 
-  left_join(t2, by=c("ParentID.y" = "ID"))
-
-# Samengevoegd
-t <-
-  t1 %>% 
-  
-  full_join(t2, 
-             by=c("hoofdID"="ParentID")) %>% 
-  drop_na(Hoofdgroep) %>% 
-  rename("subID"="ID", "subTitle"="Title", "subDescription"="Description") %>% 
-  
-  full_join(t2, 
-             by=c("subID"="ParentID"))  %>% 
-  drop_na(Hoofdgroep) %>% 
-  rename("subSubID"="ID", "subSubTitle"="Title", "subSubDescription"="Description") %>% 
-  
-  full_join(t2, 
-            by=c("subSubID"="ParentID")) %>% 
-  drop_na(Hoofdgroep) %>% 
-  
-  left_join(topic,
-            by=c("subID"="ParentID")) %>% 
-  
+topicgroups <- 
+  properties %>% 
+  filter(Type == "TopicGroup") %>% 
+  dplyr::select(ID, ParentID, Title_tg=Title, Description_tg=Description)
 
 metadata_df <-
-  topic %>% 
-  
-  left_join(tg, by=c("ParentID"= "ID")) %>% 
-  dplyr::select(-ParentID) %>% 
-  rename(ParentID=ParentID.y) %>% 
-  
-  left_join(tg, by=c("ParentID"= "ID")) %>% 
-  dplyr::select(-ParentID) %>% 
-  rename(ParentID=ParentID.y) %>% 
-  
-  right_join(t3, by=c("hoofdID"="ParentID")) %>% 
-# left_join(t4, by=c("subgroupID"="ParentID"))
-
-# Onderwerpen
-t1 <- 
-  metadata$DataProperties %>% 
-  # filter(Type == "Topic", ID %in% 111:196) %>% 
+  properties %>% 
   filter(Type == "Topic") %>% 
-  dplyr::select(ID, Position, ParentID, Key, Topic=Title, DescriptionTopic=Description, Unit) 
+  dplyr::select(Key, ID, Position, ParentID, Variable=Title, Description, Unit) %>% 
+  
+  # level1
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_1=Title_tg, Description_1 = Description_tg) %>% 
 
-# Hoofdgroep
-t2 <- 
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), is.na(ParentID)) %>% 
-  dplyr::select(hoofdID=ID, Hoofdgroep=Title, DescriptionHoofdgroep=Description) 
+  # level2
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_2=Title_tg, Description_2 = Description_tg) %>% 
 
-# Subgroepen
-t3 <-
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), !is.na(ParentID)) %>% 
-  filter(!ParentID %in% .$ID) %>% 
-  dplyr::select(subgroupID=ID, ParentID, Subgroep=Title, DescriptionSubgroep=Description) 
-
-# SubSubgroepen
-t4 <-
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), !is.na(ParentID)) %>% 
-  filter(ParentID %in% .$ID) %>% 
-  dplyr::select(subsubgroupID=ID, ParentID, SubSubgroep=Title, DescriptionSubSubgroep=Description) 
-
-metadata_df <-
-  t2 %>% 
-  left_join(t3, by=c("hoofdID"="ParentID")) %>% 
-  left_join(t4, by=c("subgroupID"="ParentID")) %>%  
-  left_join(t1, by=c("subsubgroupID" = "ParentID"))
+  # level3
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_3=Title_tg, Description_3 = Description_tg) %>% 
+  
+  # level4
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, -ParentID.y, Title_4=Title_tg, Description_4 = Description_tg) %>% 
+  
+  tidyr::pivot_longer(names_to = "tempvar", values_to = "data", Title_1:Description_4) %>% 
+  drop_na(data) %>% 
+  tidyr::separate(tempvar, into=c("text","id"), sep="_") %>% 
+  mutate(id = as.integer(id) ) %>% 
+  
+  group_by(Key, text) %>% 
+  mutate(id = abs(id - max(id, na.rm=TRUE))) %>% 
+  
+  tidyr::unite("tempvar", text:id, sep="_") %>% 
+  
+  pivot_wider(names_from = tempvar, values_from = data) %>% 
+  rename(
+    hoofdcategorie = Title_0, hoofdcategorie_desc = Description_0,
+    unittype       = Title_1, unittype_desc       = Description_1,
+    subcategorie   = Title_2, subcategorie_desc   = Description_2,
+    subsubcategorie= Title_3
+  )
 
 
 my_names <- c("Westerkwartier", "Zuidhorn", "Leek", "Marum", "Grootegast")
 # my_names <- c("Midden-Drenthe") 
 
-
-  
 # dataset samenstellen
 data <-
   dwnld %>% 
@@ -148,20 +99,14 @@ data <-
   
   # Make long
   ungroup() %>% 
-  pivot_longer(names_to="variabele", values_to="data", 7:155) %>% 
+  pivot_longer(names_to="Key", values_to="data", 7:155) %>% 
   # dplyr::select(-Description) %>% 
   
   # add beschrijving van variabelen
-  left_join(metadata_df, by=c("variabele"="Key")) %>% 
-  
-  # TEMP
-  drop_na(hoofdID) %>% 
+  left_join(metadata_df, by=c("Key"="Key")) %>% 
   
   # add jaar
   mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
-  
-  group_by(naam, variabele, jaar) %>% 
-  separate(variabele, into=c("var", "varnr"), sep="_") %>% 
   
   lowcase()
 
@@ -170,9 +115,9 @@ data <-
 # alle dieren
 data %>% 
   filter(
-    tolower(subgroep) == "aantal dieren",
-    grepl("totaal", tolower(var) )) %>% 
-  mutate(var = gsub("Totaal","", var)) %>% 
+    tolower(unittype) == "aantal dieren",
+    grepl("totaal", tolower(variable) )) %>% 
+  mutate(var = gsub("Totaal","", variable)) %>% 
   # View()
 
   ggplot(aes(x=jaar, y=data)) +

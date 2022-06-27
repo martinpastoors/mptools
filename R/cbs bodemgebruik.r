@@ -27,7 +27,7 @@ metadata <-
 save(dwnld, metadata, file=paste0("cbs",tabel,".RData"))
 load(file=paste0("cbs",tabel,".RData"))
 # load(file=paste0("cbs","85217NED",".RData"))
-
+# write.csv(metadata$DataProperties, file="bodemgebruik dataproperties.csv", row.names = FALSE)
 
 
 # View(metadata$TableInfos)
