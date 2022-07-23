@@ -1255,3 +1255,23 @@ loadRData <- function(fileName){
   load(fileName)
   get(ls()[ls() != "fileName"])
 }
+
+# -----------------------------------------------------------------------------------
+# calculate_pace
+
+calculate_pace <- function(distance, duration) {
+  pace_raw    <- (duration/60) / (distance/1000) 
+  pace_min    <- floor((duration/60) / (distance/1000))
+  pace_sec    <- floor((pace_raw - pace_min) *60)
+  pace        <- paste0(stringr::str_pad(pace_min, width=2, pad="0"),
+                        ":",
+                        stringr::str_pad(pace_sec, width=2, pad=0))
+  return(pace)
+}
+
+# -----------------------------------------------------------------------------------
+# calculate_km_hour
+
+calculate_km_hour <- function(distance, duration) {
+  km_hour <- (distance/1000) / (duration/3600)
+}
