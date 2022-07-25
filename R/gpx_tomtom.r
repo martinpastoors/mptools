@@ -97,8 +97,6 @@ session_tt <-
   dplyr::select(id, sport, date, start_time, end_time, lat, lon, duration, distance, ascent,  descent,
                 km_hour, pace, avg_heart_rate, municipality, country, filename, source)
 
-
-
 save(session_tt, file=file.path(my.filepath, "rdata", "session_tt.RData"))
 save(rec_tt, file=file.path(my.filepath, "rdata", "rec_tt.RData"))
 

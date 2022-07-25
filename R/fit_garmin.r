@@ -171,14 +171,15 @@ session_gm <-
 # load(file=file.path(my.filepath, "rdata", "session_tt.RData"))
 # load(file=file.path(my.filepath, "rdata", "rec_tt.RData"))
 
-# NEED TO FIX THE SITUATION OF THE SAME START AND PREVIOUS ENDTIME
+# laptimes, while fixing situation that start_time and lag(end_time) are identical
 lap_gm <- 
   lap %>% 
+  relocate(id, filename, sport, start_time, end_time) %>% 
   group_by(id) %>% 
   mutate(
-    lap      = row_number(),
-    # end_time = ifelse(end_time == lead(end_time), end_time-1, end_time)
-  ) %>% 
+    lap        = row_number(),
+    start_time = ifelse(lap > 1 & start_time == lag(end_time), start_time+lubridate::seconds(1), start_time),
+    start_time = lubridate::as_datetime(start_time)) %>% 
   relocate(id, filename, sport, lap, start_time, end_time) %>% 
   rename(
     lat      = start_position_lat,
@@ -199,8 +200,9 @@ lap_gm <-
   ungroup() %>% 
   distinct()
 
+# lap %>% filter(grepl("20211106T084555", id)) %>% group_by(id) %>% filter(start_time == lag(end_time)) %>%  View()
+# lap_gm %>% filter(is.na(start_time)) %>% View()
 # lap_gm %>% group_by(id) %>% filter(start_time == lag(end_time)) %>% View()
-
 # setdiff(names(session_gm), names(lap_gm))
 
 r1 <- 
@@ -226,10 +228,7 @@ r1 <-
   arrange(id, start_time) %>% 
   distinct()
 
-# setdiff(names(session_gm), names(r1))
-
-# NEED YTO CHECK WHY r2 has more records than r1; see above; due to start and previous endtime being the same
-
+# allocate laps to the individual records using sqldf 
 r2 <-
   sqldf::sqldf("select r1.start_time, lap_gm.lap from r1
                 join lap_gm on r1.start_time >= lap_gm.start_time and 
@@ -237,19 +236,23 @@ r2 <-
   as_tibble() %>% 
   distinct()
 
-r2 %>% group_by(start_time, lap) %>% mutate(n=n()) %>% filter(n>1) %>% arrange(start_time, lap) %>% View()
+# r2 %>% group_by(start_time, lap) %>% mutate(n=n()) %>% filter(n>1) %>% arrange(start_time, lap) %>% View()
 
+# combine r1 and r2 again
 rec_gm <-
   left_join(r1, r2, by="start_time") %>% 
   relocate(id, sport, lap, start_time) 
 
-rec_gm %>% group_by(id, start_time) %>% mutate(n=n()) %>% filter(n>1) %>% arrange(id, start_time, lap) %>% View()
+# rec_gm %>% filter(is.na(lap)) %>% distinct(id) %>% View()
 
 # save files
 save(session_gm, file=file.path(my.filepath, "rdata", "session_gm.RData"))
 save(lap_gm,     file=file.path(my.filepath, "rdata", "laps_gm.RData"))
 save(rec_gm,     file=file.path(my.filepath, "rdata", "rec_gm.RData"))
 
+# load(file=file.path(my.filepath, "rdata", "rec_tt.RData"))
+# load(file=file.path(my.filepath, "rdata", "session_tt.RData"))
+# load(file=file.path(my.filepath, "rdata", "laps_tt.RData"))
 
 bind_rows(session_tt, session_gm) %>% 
   filter(sport %in% c("cycling", "running")) %>% 
@@ -264,233 +267,4 @@ rec_gm %>%
 
 
 
-# load(file=file.path(my.filepath, "rdata", "rec.RData"))
-# load(file=file.path(my.filepath, "rdata", "session.RData"))
-# load(file=file.path(my.filepath, "rdata", "laps.RData"))
-
-s1 <- 
-  session %>% 
-  # filter(as.Date(start_time) == as.Date("2017-07-21") ) %>% 
-  mutate(id = paste(format(start_time, "%Y%m%dT%H%M%S"), sport)) %>% 
-  dplyr::select(id, filename) 
-
-s2 <-
-  session %>% 
-  right_join(s1, by="filename") %>% 
-  relocate(id, filename) %>% 
-  distinct() %>% 
-  rename(end_time = timestamp) %>% 
-  mutate(km_hour = calculate_km_hour(total_distance, total_timer_time)) %>% 
-  mutate(pace    = calculate_pace(total_distance, total_timer_time)) %>% 
-  dplyr::select(id, start_time, end_time, lat=start_position_lat, lon = start_position_long,
-                total_elapsed_time, total_timer_time, distance=total_distance, 
-                enhanced_avg_speed, enhanced_max_speed, total_calories,
-                total_ascent, total_descent, num_laps,
-                km_hour, pace, 
-                sport, avg_heart_rate, max_heart_rate, total_training_effect,
-                municipality, country, filename)
-s2 %>% filter(lubridate::year(start_time)==2017) %>% View()
-
-l1 <- 
-  lap %>% 
-  right_join(s1, by="filename") %>% 
-  dplyr::select(id, start_time, end_time, start_position_lat, start_position_long, end_position_lat, end_position_long,
-                total_elapsed_time, total_timer_time, total_distance, enhanced_avg_speed, enhanced_max_speed,
-                avg_heart_rate, max_heart_rate, filename) %>% 
-  mutate(total_distance = ifelse(total_distance == 0, NA, total_distance)) %>% 
-  group_by(id) %>% 
-  mutate(
-    end_time = end_time-1,
-    lap      = row_number(),
-    km_hour  = calculate_km_hour(total_distance, ifelse(is.na(total_timer_time), total_elapsed_time, total_timer_time)),
-    pace     = calculate_pace(total_distance, ifelse(is.na(total_timer_time), total_elapsed_time, total_timer_time))) %>% 
-  left_join(s2 %>% 
-              filter(num_laps==1) %>% 
-              dplyr::select(id, end_time2=end_time),
-            by = "id") %>% 
-  left_join(dplyr::select(s2,
-                          id, municipality, country),
-            by="id") %>% 
-  relocate(id, start_time, end_time) %>% 
-  filter(!is.na(start_time))
-
-# r1 <- 
-#   rec %>% 
-#   mutate(filename = ifelse(is.na(filename), fn, filename)) %>% 
-#   right_join(s1, by="filename") %>% 
-#   relocate(id, filename) %>% 
-#   distinct() %>% 
-#   drop_na(timestamp)
-
-r1 <- 
-  s2 %>% 
-  dplyr::select(start_time, lat, lon) %>% 
-  mutate(distance=0) %>% 
-  bind_rows(
-    rec %>% 
-      bind_rows() %>% 
-      mutate(filename = ifelse(is.na(filename), fn, filename)) %>% 
-      left_join(s1, by="filename") %>% 
-      rename(start_time=timestamp, lat=position_lat, lon=position_long) %>% 
-      drop_na(lat, lon) 
-  ) %>% 
-  arrange(id, start_time)
-
-# r1 %>% filter(is.na(id)) %>% View()
-# s2 %>% filter(grepl("20210711", filename)) %>% View()
-# r1 %>% filter(grepl("20210711", filename)) %>% View()
-
-r2 <-
-  sqldf::sqldf("select r1.start_time, l1.lap from r1
-                join l1 on r1.start_time >= l1.'start_time' and 
-                          r1.start_time <= l1.'end_time'") %>% 
-  as_tibble()
-
-r <-
-  left_join(r1, r2, by="start_time") %>% 
-  mutate(duration = as.numeric(start_time - lag(start_time))) %>% 
-  rename(cumdistance = distance) %>% 
-  mutate(distance = cumdistance - lag(cumdistance)) %>% 
-  mutate(km_hour = (distance/1000) / (duration/3600)  ) %>% 
-  mutate(id=id) %>% 
-  mutate(lap = ifelse(is.na(lap), 1, lap)) %>% 
-  left_join(dplyr::select(s,
-                          id, municipality, country),
-            by="id") %>% 
-  relocate(id, start_time) 
-
-# janitor::compare_df_cols(r1, r2, return="mismatch")
-# dplyr::all_equal(r1, r2)
-
-s2 %>% ggplot(aes(x=start_time, y=distance)) + geom_point(aes(colour=sport))
-
-
-
-# this compares the content of two data.frames
-diffdf::diffdf(r1,r2)
-
-ul <- r1 %>% 
-  filter(id=="20211229T051858 running") %>% 
-  ungroup() %>% 
-  summarise(
-    ul_long = min(position_long, na.rm=TRUE)-0.01,
-    ul_lat  = max(position_lat, na.rm=TRUE)+0.01
-  ) %>% 
-  pivot_longer(names_to = "variable", values_to = "value", c(ul_lat, ul_long)) %>% 
-  dplyr::select(value) %>% 
-  unlist() %>% 
-  as.numeric()
-
-lr <- r1 %>% 
-  filter(id=="20211229T051858 running") %>% 
-  ungroup() %>% 
-  summarise(
-    lr_long = max(position_long, na.rm=TRUE)+0.01,
-    lr_lat  = min(position_lat, na.rm=TRUE)-0.01
-  ) %>% 
-  pivot_longer(names_to = "variable", values_to = "value", c(lr_lat, lr_long)) %>% 
-  dplyr::select(value) %>% 
-  unlist() %>% 
-  as.numeric()
-
-t <- r1 %>% filter(id=="20211229T051858 running") 
-
-# mp <- OpenStreetMap::openmap(ul,lr)
-# plot(mp)
-
-# OpenStreetMap::autoplot.OpenStreetMap(mp, expand=FALSE) +
-#   theme_bw() +
-#   geom_segment(data=t, aes(x=position_long, y=position_lat, xend=lead(position_long), yend=lead(position_lat))) +
-#   scale_size(range = c(0, 2))
-
-library(ggmap)
-ggmap::register_google(key = "AIzaSyBBAupviqeSeVBFBNF15eTfAQ2gW2Z9ZI0")
-# al1 = get_map(location = c(left = ul[[2]], bottom = lr[[1]], right = lr[[2]], top = ul[[1]]), maptype = 'roadmap')
-al1 = get_map(location = c((ul[[2]]+lr[[2]])/2, (lr[[1]]+ul[[1]])/2), zoom=15, maptype = 'roadmap')
-al1MAP = ggmap(al1)
-al1MAP +
-  theme_bw() +
-  geom_segment(data=t, aes(x=position_long, y=position_lat, xend=lead(position_long), yend=lead(position_lat))) 
-  
-
-
-
-# # plot of specific tracks
-# lap %>%
-#   filter(date > as.Date("2021-12-02") ) %>%
-#   mutate(lap = stringr::str_pad(lap, width=2, pad="0")) %>%
-#   ggplot(aes(x=start_position_long, y=start_position_lat)) +
-#   theme_bw() +
-#   geom_segment(aes(xend=end_position_long, yend=end_position_lat, colour=as.character(lap))) +
-#   geom_segment(aes(xend=end_position_long, yend=end_position_lat, colour=as.character(lap), size=km_hour)) +
-#   geom_point(aes(colour=lap)) +
-#   scale_size(range = c(0, 2))
-
-
-# session <-
-#   session %>%
-#   # slice(n()) %>%
-#   tidygeocoder::reverse_geocode(
-#     lat  = start_position_lat,
-#     long = start_position_long,
-#     address=addr,
-# 
-#     full_results = TRUE,
-#     method = "osm"
-#   ) %>% 
-#   dplyr::select(-place_id, 
-#                 -licence,
-#                 -osm_type,
-#                 -osm_id,
-#                 -osm_lat,
-#                 -osm_lon,
-#                 -house_number,
-#                 -road,
-#                 -village,
-#                 -state,
-#                 -region,
-#                 -postcode,
-#                 -country_code,
-#                 -boundingbox,
-#                 -leisure,
-#                 -city,
-#                 -building,
-#                 -residential,
-#                 -hamlet,
-#                 -suburb,
-#                 -town,
-#                 -amenity,
-#                 -neighbourhood,
-#                 -tourism,
-#                 -isolated_dwelling,
-#                 -county,
-#                 -railway)
-
-
-# my.gpx <- list.files(my.filepath, pattern = "gpx", full.names = TRUE)
-# 
-# tomtom_gps <- data.frame(stringsAsFactors = FALSE)
-# 
-# i <- 1
-# for (i in 1:length(my.files)) {
-#   fn      <- basename(my.files[[i]])
-#   mytry<- try(trackeR::readGPX(file = my.files[[i]], timezone = "GMT"), silent=TRUE)
-#   
-#   if (class(mytry) != "try-error") {
-#     
-#     print(paste(i,my.files[[i]]))
-#     
-#     tomtom_gps <-
-#       tomtom_gps %>% 
-#       bind_rows(
-#         trackeR::readGPX(file = my.files[[i]], timezone = "GMT") %>% 
-#           mutate(filename=basename(my.files[[i]])) %>% 
-#           mutate(date=lubridate::date(time))
-#       )
-#     
-#   } else {
-#     print(paste(i,my.files[[i]], "File error"))
-#   }
-#   
-# }
 

@@ -65,34 +65,144 @@ sporttracks_hr <-
 #   theme_publication() +
 #   geom_bar(aes(fill=hrzone), stat="identity")
 
-sporttracks_session <-
-  sporttracks_gps %>% 
-  group_by(date, activity) %>% 
-  summarise(
-    longitude = mean(longitude, na.rm=TRUE),
-    latitude  = mean(latitude, na.rm=TRUE),
-    heartrate = mean(heart_rate, na.rm=TRUE),
-    heartrate_max = max(heart_rate, na.rm=TRUE),
-    seconds  = as.integer(difftime(max(time, na.rm=TRUE),min(time, na.rm=TRUE),units="secs")) ,
-    hours    = as.numeric(difftime(max(time, na.rm=TRUE),min(time, na.rm=TRUE),units="hours")) ,
-    time     = hms::as_hms(seconds),
-    distance = max(distance, na.rm=TRUE)/1000
-  ) %>% 
-  mutate(
-    speed = distance / hours,
-    pace  = hms::as_hms(as.integer(seconds / distance))
-  ) %>% 
-  dplyr::select(-seconds, -hours) %>% 
-  left_join(sporttracks_hr, by="activity")
-
-
-save(sporttracks_gps, file=file.path(my.filepath, "rdata", "sporttracks_gps.RData"))
-save(sporttracks_hr, file=file.path(my.filepath, "rdata", "sporttracks_hr.RData"))
-save(sporttracks_session, file=file.path(my.filepath, "rdata", "sporttracks_session.RData"))
-
-writexl::write_xlsx(sporttracks_session, path=file.path(my.filepath,"excel","sporttrack_sessions.xlsx"))
-
-save(sporttracks_gps_check, file=file.path(my.filepath, "rdata", "sporttracks_gps_check.RData"))
-
 load(file=file.path(my.filepath, "rdata", "sporttracks_gps.RData"))
 load(file=file.path(my.filepath, "rdata", "sporttracks_hr.RData"))
+
+# generate records object
+rec_sp <-
+  sporttracks_gps %>% 
+  separate(activity, into=c("act", "lap"), sep="_") %>% 
+  mutate(lap = as.integer(lap)) %>% 
+  rename(
+    cum_distance = distance,
+    distance     = dd,
+    duration     = dt,
+    start_time   = time,
+    lat          = latitude,
+    lon          = longitude) %>% 
+  group_by(act, lap) %>% 
+  mutate(
+    km_hour      = calculate_km_hour(distance, duration),
+    pace         = calculate_pace(distance, duration),
+    ascent       = ifelse(altitude >= lag(altitude), altitude-lag(altitude), 0),
+    descent      = ifelse(altitude <  lag(altitude), lag(altitude)-altitude, 0),
+    source       = "sporttracks"
+  ) %>% 
+  group_by(act) %>% 
+  mutate(id = format(min(start_time, na.rm=TRUE), "%Y%m%dT%H%M%S")) %>% 
+  ungroup()
+
+# generate session object
+session_sp <-
+  rec_sp %>% 
+  # filter(row_number() <= 1000) %>% 
+  group_by(id, source) %>% 
+  mutate(
+    lat          = dplyr::first(lat),
+    lon          = dplyr::first(lon)
+  ) %>% 
+  group_by(id, source, lat, lon) %>% 
+  summarise(
+    distance   = sum(distance, na.rm=TRUE),
+    duration   = sum(duration, na.rm=TRUE),
+    ascent       = sum(ascent, na.rm=TRUE),
+    descent      = sum(descent, na.rm=TRUE),
+    start_time = min(start_time, na.rm=TRUE),
+    end_time   = max(start_time, na.rm=TRUE),
+    num_laps   = max(lap, na.rm=TRUE),
+    avg_heart_rate = mean(heart_rate, na.rm=TRUE)
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    km_hour      = calculate_km_hour(distance, duration),
+    pace         = calculate_pace(distance, duration),
+    date         = as.Date(start_time),
+    filename     = "sporttracks_gps.RData",
+    sport = case_when(
+      km_hour <= 6                      ~ "walking",
+      km_hour >  6  & km_hour <= 15     ~ "running",
+      km_hour >  15                     ~ "cycling",
+      TRUE                              ~ "other")
+  ) %>% 
+  mutate(id = paste(id, sport)) %>% 
+  tidygeocoder::reverse_geocode(
+    lat  = lat,
+    long = lon,
+    address=addr,
+    full_results = TRUE,
+    method = "osm"
+  ) %>% 
+  dplyr::select(id, sport, date, start_time, end_time, lat, lon, duration, distance, ascent,  descent, num_laps, 
+                km_hour, pace, avg_heart_rate, municipality, country, filename, source)
+
+# setdiff(names(session_gm), names(session_sp))
+
+# generate id object
+ids <-
+  session_sp %>% 
+  # dplyr::select(id, municipality, country) %>% 
+  dplyr::select(id) %>% 
+  separate(id, into=c("id2", "sport"), sep=" ", remove=FALSE)
+
+# redo records object with id's
+rec_sp <-
+  rec_sp %>% 
+  left_join(ids, by=c("id"="id2")) %>% 
+  dplyr::select(-id) %>% 
+  rename(id=id.y)
+
+# generate laps object
+lap_sp <-
+  rec_sp %>% 
+  group_by(id, sport, lap, source) %>% 
+  mutate(
+    lat          = dplyr::first(lat),
+    lon          = dplyr::first(lon)
+  ) %>% 
+  group_by(id, sport, lap, lat, lon, source) %>% 
+  summarise(
+    distance   = sum(distance, na.rm=TRUE),
+    duration   = sum(duration, na.rm=TRUE),
+    ascent       = sum(ascent, na.rm=TRUE),
+    descent      = sum(descent, na.rm=TRUE),
+    start_time   = min(start_time, na.rm=TRUE),
+    end_time     = max(start_time, na.rm=TRUE),
+    filename     = "sporttracks_gps.RData"
+  ) %>% 
+  mutate(
+    km_hour      = calculate_km_hour(distance, duration),
+    pace         = calculate_pace(distance, duration)
+  )
+
+  
+# plots
+bind_rows(session_tt, session_gm, session_sp) %>% 
+  mutate(yday = lubridate::yday(date)) %>% 
+  filter(sport %in% c("cycling", "running")) %>% 
+  mutate(year = lubridate::year(start_time)) %>% 
+  ggplot(aes(x=yday, y=km_hour)) +
+  geom_point(aes(colour=source)) +
+  scale_x_continuous(limits=c(1,365)) +
+  facet_grid(sport~year, scales="free_y")
+
+bind_rows(session_tt, session_gm, session_sp) %>% 
+  mutate(yday = lubridate::yday(date)) %>% 
+  mutate(distance = distance/1000) %>% 
+  filter(sport %in% c("cycling", "running")) %>% 
+  mutate(year = lubridate::year(start_time)) %>% 
+  ggplot(aes(x=yday, y=distance)) +
+  geom_point(aes(colour=source)) +
+  scale_x_continuous(limits=c(1,365)) +
+  facet_grid(sport~year, scales="free_y")
+
+
+# save(sporttracks_gps, file=file.path(my.filepath, "rdata", "sporttracks_gps.RData"))
+# save(sporttracks_hr, file=file.path(my.filepath, "rdata", "sporttracks_hr.RData"))
+# save(sporttracks_session, file=file.path(my.filepath, "rdata", "sporttracks_session.RData"))
+
+# save
+save(session_sp, file=file.path(my.filepath, "rdata", "session_sp.RData"))
+save(rec_sp, file=file.path(my.filepath, "rdata", "rec_sp.RData"))
+save(lap_sp, file=file.path(my.filepath, "rdata", "laps_sp.RData"))
+
+
