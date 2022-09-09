@@ -14,10 +14,11 @@ toc %>% filter(grepl("bevolking", tolower(Title))) %>% View()
 
 # Downloaden van gehele tabel (kan een halve minuut duren)
 tabel    <- "03759ned"
-
+tabel    <- "37296ned"
 dwnld    <- 
   cbs_get_data(tabel)  %>% 
-  cbs_add_label_columns()  
+  cbs_add_label_columns()  %>% 
+  mutate(Perioden_label = as.integer(as.character(Perioden_label)))
   # cbs_add_date_column() 
 
 metadata <- 
@@ -36,113 +37,70 @@ load(file=paste0("cbs","03759ned",".RData"))
 # View(metadata$Perioden)
 # unique(metadata$DataProperties$Type)
 
+properties <- metadata$DataProperties
 
-# Hoofdgroep
-t1 <- 
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), is.na(ParentID)) %>% 
-  dplyr::select(hoofdID=ID, Hoofdgroep=Title, DescriptionHoofdgroep=Description) 
-
-# Groep
-t2 <- 
-  metadata$DataProperties %>% 
-  filter(Type == "Topic") %>% 
-  dplyr::select(ID, Position, ParentID, Key, Topic=Title, DescriptionTopic=Description, Unit) 
-
-# Subgroepen
-t3 <-
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), !is.na(ParentID)) %>% 
-  filter(!ParentID %in% .$ID) %>% 
-  dplyr::select(subgroupID=ID, ParentID, Subgroep=Title, DescriptionSubgroep=Description) 
-
-# SubSubgroepen
-t4 <-
-  metadata$DataProperties %>% 
-  filter(Type == "TopicGroup", is.na(Position), !is.na(ParentID)) %>% 
-  filter(ParentID %in% .$ID) %>% 
-  dplyr::select(subsubgroupID=ID, ParentID, SubSubgroep=Title, DescriptionSubSubgroep=Description) 
+topicgroups <- 
+  properties %>% 
+  filter(Type == "TopicGroup") %>% 
+  dplyr::select(ID, ParentID, Title_tg=Title, Description_tg=Description)
 
 metadata_df <-
-  t1 %>% 
-  right_join(t2, by=c("hoofdID"= "ParentID")) 
-  # left_join(t3, by=c("hoofdID"="ParentID")) %>% 
-  # left_join(t4, by=c("subgroupID"="ParentID")) %>%  
-
-
-my_names <- c("Westerkwartier", "Zuidhorn", "Leek", "Marum", "Grootegast")
-# my_names <- c("Midden-Drenthe") 
-
-
+  properties %>% 
+  filter(Type == "Topic") %>% 
+  dplyr::select(Key, ID, Position, ParentID, Variable=Title, Description, Unit) %>% 
   
-# dataset samenstellen
+  # level1
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_1=Title_tg, Description_1 = Description_tg) %>% 
+  
+  # level2
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_2=Title_tg, Description_2 = Description_tg) %>% 
+  
+  # level3
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, ParentID=ParentID.y, Title_3=Title_tg, Description_3 = Description_tg) %>% 
+  
+  # level4
+  left_join(topicgroups, by=c("ParentID" = "ID")) %>% 
+  dplyr::select(-ParentID, -ParentID.y, Title_4=Title_tg, Description_4 = Description_tg) %>% 
+  
+  tidyr::pivot_longer(names_to = "tempvar", values_to = "data", Title_1:Description_4) %>% 
+  drop_na(data) %>% 
+  tidyr::separate(tempvar, into=c("text","id"), sep="_") %>% 
+  mutate(id = as.integer(id) ) %>% 
+  
+  group_by(Key, text) %>% 
+  mutate(id = abs(id - max(id, na.rm=TRUE))) %>% 
+  
+  tidyr::unite("tempvar", text:id, sep="_") %>% 
+  
+  pivot_wider(names_from = tempvar, values_from = data) %>% 
+  rename(hoofdcategorie = Title_0, hoofdcategorie_desc = Description_0) %>% 
+  rename(unittype       = Title_1, unittype_desc       = Description_1) %>% 
+  {if("Title2" %in% names(.)) rename(subcategorie   = Title_2, subcategorie_desc   = Description_2) else .} %>% 
+  {if("Title3" %in% names(.)) rename(subsubcategorie= Title_3) else .}
+
+
+
+
+
 data <-
   dwnld %>% 
   
-  # add naam van gemeente
-  rename(naam = Gemeentenaam_1) %>% 
-  mutate(naam = gsub("\\s+$","", naam)) %>% 
-  
-  # filter op namenn
-  filter(naam %in% my_names) %>% 
-  filter(grepl("Gemeente", SoortRegio_2)) %>% 
-  
   # Make long
   ungroup() %>% 
-  pivot_longer(names_to="variabele", values_to="data", 6:ncol(dwnld)) %>% 
+  pivot_longer(names_to="Key", values_to="data", 3:ncol(.)) %>% 
   # dplyr::select(-Description) %>% 
   
   # add beschrijving van variabelen
-  left_join(metadata_df, by=c("variabele"="Key")) %>% 
-  
-  # TEMP
-  drop_na(hoofdID) %>% 
+  left_join(metadata_df, by=c("Key"="Key")) %>% 
   
   # add jaar
-  # mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
-  mutate(jaar = 2017) %>% 
-  
-  group_by(naam, variabele, jaar) %>% 
-  separate(variabele, into=c("var", "varnr"), sep="_") %>% 
+  mutate(jaar = as.integer(as.character(Perioden_label))) %>% 
   
   lowcase()
 
-install.packages("treemapify")
-library(treemapify)
 
-data %>% 
-  filter(grepl("totaal", tolower(var))) %>% 
-  filter(data > 0) %>% 
-  group_by(topic) %>% 
-  summarise(data=sum(data, na.rm=TRUE)) %>% 
-  ungroup() %>% 
-  mutate(topic = gsub("Totaal |Totaal  ","", topic)) %>% 
-  arrange(desc(topic)) %>% 
-  mutate(prop = 100*(data / sum(data, na.rm=TRUE))) %>% 
-  mutate(ypos = cumsum(prop)- 0.5*prop ) %>% 
-  
-  ggplot(aes(x="", y=prop, fill=topic)) +
-  # theme_void() +
-  geom_bar(stat="identity", width=1, color="white") +
-  coord_polar("y", start=0) +
-  geom_text(aes(y = ypos, label = prop), color = "white", size=6) +
-  scale_fill_brewer(palette="Set1")
-   
 
-data %>% 
-  filter(grepl("totaal", tolower(var))) %>% 
-  filter(data > 0) %>% 
-  group_by(naam, topic) %>% 
-  summarise(data=sum(data, na.rm=TRUE)) %>% 
-  group_by(naam) %>% 
-  mutate(topic = gsub("Totaal |Totaal  ","", topic)) %>% 
-  arrange(desc(topic)) %>% 
-  mutate(prop = 100*(data / sum(data, na.rm=TRUE))) %>% 
-  mutate(ypos = cumsum(prop)- 0.5*prop ) %>% 
-  
-  ggplot(aes(area = prop, fill = topic, label = paste(substr(topic,1,10), as.integer(prop)))) +
-  theme(legend.position = "none")+
-  geom_treemap() +
-  geom_treemap_text() +
-  facet_wrap(~naam)
 
