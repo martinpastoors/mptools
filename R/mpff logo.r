@@ -25,6 +25,20 @@ img2 <-
   image_resize("2000x2000") %>%
   image_colorize(35, "white")
 
+img3 <- 
+  image_read(file.path(mypath, "20220917_151556 (Medium).jpg")) %>% 
+  image_rotate(degrees=90) %>% 
+  # image_resize("1190x345") %>%
+  image_colorize(35, "white")
+
+img4 <- 
+  image_read(file.path(mypath, "DSC01726 (Medium).jpg")) %>% 
+  image_colorize(35, "white")
+
+
+
+# cowplot::ggdraw() + draw_image(img3, .056, .04, 0.90, .99, valign=0.1)  
+  
 p <-
   data %>% 
   ggplot(aes(x=nr, y=value)) +
@@ -55,9 +69,13 @@ cowplot::ggdraw() +
   draw_image(img2, .056, .04, 0.90, .99, valign=0.1) + 
   draw_plot(p)   
 
+cowplot::ggdraw() + 
+  draw_image(img3, x=.056, y=.04, width=0.90, height=.99, valign=0.1) + 
+  # draw_plot(p, x=0.22, width=0.55) 
+  draw_plot(p, x=0.075, width=0.85, height=0.95)
 
-
-data %>% 
-  ggplot(aes(area = value, fill = nr)) +
-  geom_treemap()
+cowplot::ggdraw() + 
+  draw_image(img4, x=.056, y=.04, width=0.9, height=1.2, valign=0.1) + 
+  # draw_plot(p, x=0.22, width=0.55) 
+  draw_plot(p, x=0.075, width=0.85, height=0.95)
 
