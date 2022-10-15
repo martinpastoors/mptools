@@ -84,7 +84,7 @@ data <-
   
   lowcase()
 
-
+# asielverzoeken
 
 dwnld %>% 
   lowcase() %>% 
@@ -96,4 +96,16 @@ dwnld %>%
   facet_wrap(~variable)
 
 
+toc %>% filter(grepl("migratie", tolower(Title))) %>% dplyr::select(Identifier, Title, Summary, Frequency, Period, RecordCount) %>% View()
+
+# Downloaden van gehele tabel (kan een halve minuut duren)
+tabel    <- "84978NED"
+dwnld    <- 
+  cbs_get_data(tabel)  %>% 
+  cbs_add_label_columns()  %>% 
+  mutate(Perioden_label = as.integer(as.character(Perioden_label)))
+# cbs_add_date_column() 
+
+metadata <- 
+  cbs_get_meta(tabel)
 
