@@ -7,9 +7,10 @@
 library(FITfileR)    # devtools::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(leaflet)
-library(tidygeocoder)
+# library(tidygeocoder)
 library(RJSONIO)     #install.packages("RJSONIO")
 library(OpenStreetMap)
+# library(rJava)
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -110,13 +111,18 @@ shape <- sf::st_transform(shape, crs = 4326)
 map <- OpenStreetMap::openmap(c(ylim[2],xlim[1]), c(ylim[1],xlim[2]), zoom = NULL,
                type = c("osm"),
                mergeTiles = TRUE)
+
 class(map)
 
 library( leaflet )
 library( magrittr )
 library(ggmap)
 
-
+map <- leaflet()  %>% addTiles() 
+  # addCircleMarkers(data=df1, radius = 8, color = 'red', fill = TRUE, label = ~as.character(row_rank), labelOptions=c(noHide=TRUE)) %>%
+map <- map %>%   
+  addPolylines(data=t2, lng = ~lon, lat = ~lat)
+map
 # subscr<-data.frame(lat=c(55.381640),
 #                    lon=c(10.433600))
 
