@@ -35,7 +35,7 @@ my.fit <- list.files(path=file.path(my.filepath, "garmin"), pattern = "*.fit", f
 
 i <- 1
 rec <- session <- lap <- data.frame(stringsAsFactors = FALSE)
-for (i in 2:length(my.fit)) {
+for (i in 1:length(my.fit)) {
 # for (i in 1:5) {
     
   invisible(gc())
@@ -245,6 +245,26 @@ rec_gm <-
 
 # rec_gm %>% filter(is.na(lap)) %>% distinct(id) %>% View()
 
+
+# combine with existing rdata sets
+session_gm <- 
+  bind_rows(
+    loadRData(file.path(my.filepath, "rdata", "session_gm.RData")),
+    session_gm
+  )
+
+lap_gm <- 
+  bind_rows(
+    loadRData(file.path(my.filepath, "rdata", "laps_gm.RData")),
+    lap_gm
+  )
+
+rec_gm <- 
+  bind_rows(
+    loadRData(file.path(my.filepath, "rdata", "rec_gm.RData")),
+    rec_gm
+  )
+
 # save files
 save(session_gm, file=file.path(my.filepath, "rdata", "session_gm.RData"))
 save(lap_gm,     file=file.path(my.filepath, "rdata", "laps_gm.RData"))
@@ -254,17 +274,25 @@ save(rec_gm,     file=file.path(my.filepath, "rdata", "rec_gm.RData"))
 # load(file=file.path(my.filepath, "rdata", "session_tt.RData"))
 # load(file=file.path(my.filepath, "rdata", "laps_tt.RData"))
 
-bind_rows(session_tt, session_gm) %>% 
+bind_rows(session_gm) %>% 
   filter(sport %in% c("cycling", "running")) %>% 
   mutate(year = lubridate::year(start_time)) %>% 
   ggplot(aes(x=start_time, y=km_hour)) +
   geom_point(aes(colour=sport)) +
   facet_grid(sport~year, scales="free")
 
-rec_gm %>% 
-  filter(id=="20211106T084555 cycling") %>% 
-  ggplot(aes(x=lon, y=lat)) + theme_publication() + geom_point(aes(colour=factor(lap)))
+# rec_gm %>% 
+#   filter(id=="20211106T084555 cycling") %>% 
+#   ggplot(aes(x=lon, y=lat)) + theme_publication() + geom_point(aes(colour=factor(lap)))
 
+rec_gm %>% 
+  filter(date >= lubridate::ymd("2022-05-01")) %>% 
+  filter(lat>52.7, lat<53, lon < 6.6) %>% 
+  filter(sport=="running") %>% 
+  ggplot(aes(x=lon, y=lat)) + 
+  theme_publication() + 
+  theme(legend.position="none") +
+  geom_point(aes(colour=id))
 
 
 
