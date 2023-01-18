@@ -100,6 +100,7 @@ toc %>% filter(grepl("migratie", tolower(Title))) %>% dplyr::select(Identifier, 
 
 # Downloaden van gehele tabel (kan een halve minuut duren)
 tabel    <- "84978NED"
+tabel    <- "60032"
 dwnld    <- 
   cbs_get_data(tabel)  %>% 
   cbs_add_label_columns()  %>% 
@@ -108,4 +109,34 @@ dwnld    <-
 
 metadata <- 
   cbs_get_meta(tabel)
+
+properties <- metadata$DataProperties
+
+topicgroups <- 
+  properties %>% 
+  # filter(Type == "TopicGroup") %>% 
+  dplyr::select(ID, ParentID, Title_tg=Title, Description_tg=Description)
+
+metadata_df <-
+  properties %>% 
+  filter(Type == "Topic") %>% 
+  dplyr::select(Key, ID, Position, ParentID, Variable=Title, Description, Unit)  %>% 
+  
+  tidyr::pivot_longer(names_to = "tempvar", values_to = "data", Title_1:Description_4) %>% 
+  drop_na(data) %>% 
+  tidyr::separate(tempvar, into=c("text","id"), sep="_") %>% 
+  mutate(id = as.integer(id) ) %>% 
+  
+  group_by(Key, text) %>% 
+  mutate(id = abs(id - max(id, na.rm=TRUE))) %>% 
+  
+  tidyr::unite("tempvar", text:id, sep="_") %>% 
+  
+  pivot_wider(names_from = tempvar, values_from = data) %>% 
+  rename(hoofdcategorie = Title_0, hoofdcategorie_desc = Description_0) %>% 
+  rename(unittype       = Title_1, unittype_desc       = Description_1) %>% 
+  {if("Title2" %in% names(.)) rename(subcategorie   = Title_2, subcategorie_desc   = Description_2) else .} %>% 
+  {if("Title3" %in% names(.)) rename(subsubcategorie= Title_3) else .}
+
+
 

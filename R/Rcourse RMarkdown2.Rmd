@@ -1,0 +1,87 @@
+---
+title: "Research document"
+author: "Martin"
+date: "1 maart 2016"
+output:
+  word_document:
+    fig_caption: yes
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+minke <- read.csv("http://www.hafro.is/~einarhj/data/minke.csv",
+              stringsAsFactors = FALSE) 
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars, echo=TRUE}
+summary(minke)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE, fig.height=3, fig.width=8, fig.cap="Figure 3.1 Pressure"}
+library(ggplot2)
+ggplot(minke, aes(age,length)) + geom_point()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## Maps
+### subheading
+
+Let's see if we can include the plots of the Minke whale on the map? 
+
+```{r Map, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Figure 3.2 Mike whale data by age and sex"}
+library(ggmap)
+m <- get_map(location=c(-20,65), zoom=6, source="osm")
+ggmap(m) + 
+  geom_point(data=minke, aes(lon,lat, colour=sex, size = age), alpha=0.6) 
+```
+
+* Book
+* Fish
+    + Cod
+    + Plaice 
+
+
+```{r table}
+#, results='asis'
+#library(knitr)
+library(dplyr)
+library(tidyr)
+library(pander)
+catatage <-
+  read.csv('http://data.hafro.is/assmt/2015/cod/catage.csv')
+catlong <-
+  gather(catatage, #df
+         key=age, #names of new variables
+         value=number, # values
+         X3:X14) #apply to what columns
+catlong <-
+  mutate(catlong,
+         age = as.numeric(gsub('X', '', age)))
+catwide2 <- 
+  catlong %>% 
+  spread(key=Year, value=number) %>% 
+  mutate(age=as.character(Year))
+pandoc.table(catwide2, split.tables=80)
+m <- mtcars[1:2, ] 
+pandoc.table(mtcars[1:2, ], style = "grid", emphasize.rownames=TRUE)
+pandoc.table(catwide2[1:2,], style = "grid", caption = "Hello caption!")
+
+```
+
+
+
+## Inline R code
+
+The total number of minke whales in the dataset was `r nrow(minke)`. 
