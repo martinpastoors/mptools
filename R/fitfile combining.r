@@ -4,12 +4,12 @@
 # To do: deal with breaks in between; calculate time between recordings; 
 # ====================================================================================
 
-library(FITfileR)    # devtools::install_github("grimbough/FITfileR")
+library(FITfileR)    # remotes::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(leaflet)
 # library(tidygeocoder)
 library(RJSONIO)     #install.packages("RJSONIO")
-library(OpenStreetMap)
+# library(OpenStreetMap)
 library(osmdata)
 # library(rJava)
 
@@ -21,34 +21,34 @@ source("r/my utils.r")
 my.filepath <- file.path(get_dropbox(),"Hardloop")
 
 # load data frames
-rec        <- loadRData(file=file.path(my.filepath, "rdata", "rec.RData"))
-session    <- loadRData(file=file.path(my.filepath, "rdata", "session.RData"))
-lap        <- loadRData(file=file.path(my.filepath, "rdata", "laps.RData"))
+# rec        <- loadRData(file=file.path(my.filepath, "rdata", "rec.RData"))
+# session    <- loadRData(file=file.path(my.filepath, "rdata", "session.RData"))
+# lap        <- loadRData(file=file.path(my.filepath, "rdata", "laps.RData"))
 
-rec_gm     <- loadRData(file=file.path(my.filepath, "rdata", "rec_gm.RData"))
-session_gm <- loadRData(file=file.path(my.filepath, "rdata", "session_gm.RData"))
-lap_gm     <- loadRData(file=file.path(my.filepath, "rdata", "laps_gm.RData"))
+# rec_gm     <- loadRData(file=file.path(my.filepath, "rdata", "rec_gm.RData"))
+# session_gm <- loadRData(file=file.path(my.filepath, "rdata", "session_gm.RData"))
+# lap_gm     <- loadRData(file=file.path(my.filepath, "rdata", "laps_gm.RData"))
 
 # session %>% filter(id %in% session_gm$id) %>% View()
 # session_gm %>% filter(id %in% session$id) %>% View()
 
 # CONTINUE HERE 14/10/2022
-session_comb <- 
-  bind_rows(loadRData(file=file.path(my.filepath, "rdata", "session_sp.RData")) ) %>% 
-  bind_rows(loadRData(file=file.path(my.filepath, "rdata", "session_tt.RData")) ) %>% 
-  bind_rows(session ) %>% 
-  bind_rows(session_gm %>% filter(!id %in% session$id))  
+# session_comb <- 
+#   bind_rows(loadRData(file=file.path(my.filepath, "rdata", "session_sp.RData")) ) %>% 
+#   bind_rows(loadRData(file=file.path(my.filepath, "rdata", "session_tt.RData")) ) %>% 
+#   bind_rows(session ) %>% 
+#   bind_rows(session_gm %>% filter(!id %in% session$id))  
 
-rec_comb <- 
-  bind_rows(loadRData(file=file.path(my.filepath, "rdata", "rec_sp.RData")) ) %>% 
-  bind_rows(loadRData(file=file.path(my.filepath, "rdata", "rec_tt.RData")) ) %>% 
-  bind_rows(rec ) %>% 
-  bind_rows(rec_gm %>% filter(!id %in% rec$id))  
+# rec_comb <- 
+#   bind_rows(loadRData(file=file.path(my.filepath, "rdata", "rec_sp.RData")) ) %>% 
+#   bind_rows(loadRData(file=file.path(my.filepath, "rdata", "rec_tt.RData")) ) %>% 
+#   bind_rows(rec ) %>% 
+#   bind_rows(rec_gm %>% filter(!id %in% rec$id))  
 
-session_comb <- session_comb %>% distinct(id, sport, start_time, .keep_all = TRUE) 
+# session_comb <- session_comb %>% distinct(id, sport, start_time, .keep_all = TRUE) 
 
-save(session_comb, file=file.path(my.filepath, "rdata", "session_comb.RData"))
-save(rec_comb,     file=file.path(my.filepath, "rdata", "rec_comb.RData"))
+# save(session_comb, file=file.path(my.filepath, "rdata", "session_comb.RData"))
+# save(rec_comb,     file=file.path(my.filepath, "rdata", "rec_comb.RData"))
 
 load(file=file.path(my.filepath, "rdata", "session_comb.RData"))
 load(file=file.path(my.filepath, "rdata", "rec_comb.RData"))
@@ -90,30 +90,36 @@ t2 %>%
   facet_wrap(~round, ncol=10)
 
 
-
-# leaflet solution
-map <- leaflet()  %>% addTiles() 
-map <- map %>%   
-  # addCircleMarkers(data=df1, radius = 8, color = 'red', fill = TRUE, label = ~as.character(row_rank), labelOptions=c(noHide=TRUE)) %>%
-  addPolylines(data=t2, lng = ~lon, lat = ~lat, group=id)
-map
+t2_sf <-
+  t2 %>% 
+  sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
+  dplyr::group_by(id, round) %>% 
+  dplyr::summarise() %>%
+  sf::st_cast("LINESTRING")
 
 coords <- 
-  matrix(c(-0.1,-0.07,51.5,51.52), 
+  matrix(c(xlim[1],xlim[2],ylim[1],ylim[2]), 
          byrow = TRUE, 
          nrow = 2, 
          ncol = 2, 
          dimnames = list(c('x','y'),c('min','max'))) 
 
-location <- coords %>% opq()
+map <- coords %>% osmdata::opq() %>% osmdata::osmdata_sf()
+plot(map)
 
-# sf solution first standardize the spatial objects
-points   <- 
-  sf::st_as_sf(t2, coords = c("lon", "lat"), crs = 4326)
-polys = points %>% 
-  dplyr::group_by(id) %>% 
-  dplyr::summarise() %>%
-  sf::st_cast("POLYGON")
+ggplot() +
+  theme_publication() +
+  theme(legend.position="none") +
+  # geom_sf(data=map) +
+  geom_sf(data=t2_sf, aes(colour=id)) +
+  facet_wrap(~round, ncol=8)
+
+# leaflet solution
+# map <- leaflet()  %>% addTiles() 
+# map <- map %>%   
+#   # addCircleMarkers(data=df1, radius = 8, color = 'red', fill = TRUE, label = ~as.character(row_rank), labelOptions=c(noHide=TRUE)) %>%
+#   addPolylines(data=t2, lng = ~lon, lat = ~lat, group=id)
+# map
 
 
 
