@@ -10,6 +10,7 @@ library(leaflet)
 # library(tidygeocoder)
 library(RJSONIO)     #install.packages("RJSONIO")
 library(OpenStreetMap)
+library(osmdata)
 # library(rJava)
 
 options(dplyr.summarise.inform = FALSE)
@@ -90,7 +91,23 @@ t2 %>%
 
 
 
-# first standardize the spatial objects
+# leaflet solution
+map <- leaflet()  %>% addTiles() 
+map <- map %>%   
+  # addCircleMarkers(data=df1, radius = 8, color = 'red', fill = TRUE, label = ~as.character(row_rank), labelOptions=c(noHide=TRUE)) %>%
+  addPolylines(data=t2, lng = ~lon, lat = ~lat, group=id)
+map
+
+coords <- 
+  matrix(c(-0.1,-0.07,51.5,51.52), 
+         byrow = TRUE, 
+         nrow = 2, 
+         ncol = 2, 
+         dimnames = list(c('x','y'),c('min','max'))) 
+
+location <- coords %>% opq()
+
+# sf solution first standardize the spatial objects
 points   <- 
   sf::st_as_sf(t2, coords = c("lon", "lat"), crs = 4326)
 polys = points %>% 
@@ -98,81 +115,6 @@ polys = points %>%
   dplyr::summarise() %>%
   sf::st_cast("POLYGON")
 
-plot(points)
-plot(polys)
-polys %>% group_by(id) %>% sf::st_bbox()
-
-class(points)
-
-shape <- sf::st_transform(shape, crs = 4326)
 
 
 
-map <- OpenStreetMap::openmap(c(ylim[2],xlim[1]), c(ylim[1],xlim[2]), zoom = NULL,
-               type = c("osm"),
-               mergeTiles = TRUE)
-
-class(map)
-
-library( leaflet )
-library( magrittr )
-library(ggmap)
-
-map <- leaflet()  %>% addTiles() 
-  # addCircleMarkers(data=df1, radius = 8, color = 'red', fill = TRUE, label = ~as.character(row_rank), labelOptions=c(noHide=TRUE)) %>%
-map <- map %>%   
-  addPolylines(data=t2, lng = ~lon, lat = ~lat)
-map
-# subscr<-data.frame(lat=c(55.381640),
-#                    lon=c(10.433600))
-
-s  
-go_tar_heels <- ggmap::get_stamenmap(bbox = c(left = xlim[1], 
-                                              bottom = ylim[1], 
-                                              right = xlim[2], 
-                                              top = ylim[2]),
-                                     zoom = 14, 
-                                     maptype = "watercolor")
-bbox <- c(left = xlim[1], 
-                 bottom = ylim[1], 
-                 right = xlim[2], 
-                 top = ylim[2])
-
-# plot on the background, using standard ggplot syntax
-ggmap::ggmap(go_tar_heels) +
-  geom_point(data = t2, aes(x = lon, y = lat), col = "red")
-
-  autoplot.OpenStreetMap(map)  %>% longlat(.)
-  theme_publication() +
-  geom_point(data=t2, aes(x=lon, y=lat), size=0.2) +
-  labs(title = "Plot over OpenStreetMap")
-
-  # download
-  map <- ggmap::get_googlemap(center = "Europe", zoom = 3, 
-                       style = paste0("feature:administrative.country|",
-                                      "element:labels|visibility:off"),
-                       filename = "Map",
-                       language = "en-EN") # you might want to adjust the language settings
-  
-  # see what you've got
-  ggmap(map)
-  
-  # edit map
-  ggmap(map)+
-    
-    # do some scaling (make it smaller)
-    scale_x_continuous(limits = c(-12, 42), expand = c(0, 0)) +
-    scale_y_continuous(limits = c(35, 70), expand = c(0, 0))+
-    
-    # remove unwanted information
-    theme(axis.title.x    = element_blank(),
-          axis.title.y    = element_blank(),
-          axis.line       = element_blank(),
-          axis.ticks      = element_blank(),
-          axis.text       = element_blank(),
-          plot.title      = element_blank(),
-          plot.background = element_blank())
-save(session_comb, file=file.path(my.filepath, "rdata", "session_comb.RData"))
-save(rec_comb,     file=file.path(my.filepath, "rdata", "rec_comb.RData"))
-# save(lap,     file=file.path(my.filepath, "rdata", "laps.RData"))
-# writexl::write_xlsx(session, path=file.path(my.filepath,"excel","sessions.xlsx"))
