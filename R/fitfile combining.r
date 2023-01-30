@@ -6,7 +6,7 @@
 
 library(FITfileR)    # remotes::install_github("grimbough/FITfileR")
 library(tidyverse)
-library(leaflet)
+# library(leaflet)
 # library(tidygeocoder)
 library(RJSONIO)     #install.packages("RJSONIO")
 # library(OpenStreetMap)
