@@ -20,8 +20,8 @@ my.filepath <- file.path(get_dropbox(),"Hardloop")
 # load data frames
 rec     <- loadRData(file=file.path(my.filepath, "rdata", "rec_comb.RData"))
 session <- loadRData(file=file.path(my.filepath, "rdata", "session_comb.RData"))
-laps    <- loadRData(file=file.path(my.filepath, "rdata", "laps.RData")) 
-
+laps    <- loadRData(file=file.path(my.filepath, "rdata", "laps_comb.RData")) 
+  
 # make filelist for zip files
 my.zip <- list.files(path=file.path(my.filepath, "garmin"), pattern = "*.zip", full.names = TRUE, recursive = FALSE) 
 
@@ -34,8 +34,9 @@ for (i in 1:length(my.zip)) {
 my.fit <- list.files(path=file.path(my.filepath, "garmin"), pattern = "*.fit", full.names = TRUE, recursive = FALSE) 
 
 # i <- 1
-for (i in 1:length(my.fit)) {
-
+# for (i in 1:length(my.fit)) {
+for (i in 15:length(my.fit)) {
+    
   invisible(gc())
   
   bn      <- basename(my.fit[[i]])
@@ -53,7 +54,7 @@ for (i in 1:length(my.fit)) {
     mydate2 <- format(mydate, "%Y%m%d") 
     id      <- paste(format(getMessagesByType(ff, "session")$start_time, "%Y%m%dT%H%M%S"), sp)
     
-    if (id %notin% session_comb$id) {
+    if (id %notin% session$id) {
       
       # add to session summaries
       session <- 
@@ -89,9 +90,11 @@ for (i in 1:length(my.fit)) {
               full_results = TRUE,
               method = "osm"
             ) %>%
-            rename(any_of(c("municipality"="city"))) %>% 
-            dplyr::select(id, sport, date, start_time, end_time, lat, lon, duration, distance, ascent,  descent, num_laps, 
-                          km_hour, pace, avg_heart_rate, municipality, country, filename, source)
+            # rename(any_of(c("municipality"="city"))) %>% 
+            dplyr::select(any_of(c("id", "sport", "date", "start_time", "end_time", "lat", "lon", 
+                                  "duration", "distance", "ascent",  "descent", "num_laps", 
+                                  "km_hour", "pace", "avg_heart_rate", "city", "municipality", 
+                                  "country", "filename", "source")))
         )  
   
       # laps

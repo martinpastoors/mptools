@@ -141,7 +141,8 @@ count_inf <- function(x) {
 # -----------------------------------------------------------------------------------
 
 count_not_finite <- function(x) {
-  sapply(x, function(y) sum(!is.finite(y), na.rm=T))
+  sapply(x, function(y) sum(is.na(y)|is.nan(y)|is.infinite(y)|y==0))
+  # sapply(x, function(y) sum(!is.finite(y), na.rm=T))
 }
 
 # -----------------------------------------------------------------------------------

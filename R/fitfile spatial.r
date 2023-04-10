@@ -8,6 +8,7 @@ library(FITfileR)    # remotes::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(RJSONIO)     #install.packages("RJSONIO")
 library(osmdata)
+library(sf)
 
 options(dplyr.summarise.inform = FALSE)
 
@@ -21,16 +22,18 @@ load(file=file.path(my.filepath, "rdata", "session_comb.RData"))
 load(file=file.path(my.filepath, "rdata", "rec_comb.RData"))
 load(file=file.path(my.filepath, "rdata", "laps_comb.RData"))
 
-
+# http://joshuamccrain.com/tutorials/maps/streets_tutorial.html
 # ======================================================================================
 h <- data.frame(lat = 52.81355, lon=6.54193)
 
-t <- session %>% filter(municipality=="Midden-Drenthe", sport=="running", distance >=9800, distance <10400) 
+t <- session %>% filter(municipality=="Midden-Drenthe", sport=="running", 
+                        distance >=10000, distance <10400) 
 
 t2 <-
   rec %>% 
   filter(id %in% t$id) %>% 
   # filter(lat < 52.82) %>% 
+  filter(!grepl("53920", id)) %>% 
   drop_na(start_time, lat, lon, cum_distance) %>% 
   group_by(id) %>% 
   mutate(
@@ -49,13 +52,13 @@ t2 <-
 xlim <- range(t2$lon, na.rm=TRUE)
 ylim <- range(t2$lat, na.rm=TRUE)
 
-t2 %>% 
-  ggplot(aes(x=lon, y=lat)) +
-  theme_minimal() +
-  coord_quickmap(xlim=xlim, ylim=ylim) +
-  geom_point(aes(group=as.Date(start_time)), size=0.5) +
-  geom_point(data=h, size=1.2, colour="red") +
-  facet_wrap(~round, ncol=10)
+# t2 %>% 
+#   ggplot(aes(x=lon, y=lat)) +
+#   theme_minimal() +
+#   coord_quickmap(xlim=xlim, ylim=ylim) +
+#   geom_point(aes(group=as.Date(start_time)), size=0.5) +
+#   geom_point(data=h, size=1.2, colour="red") +
+#   facet_wrap(~round, ncol=10)
 
 
 t2_sf <-
@@ -63,28 +66,42 @@ t2_sf <-
   sf::st_as_sf(coords = c("lon", "lat"), crs = 4326) %>% 
   dplyr::group_by(id, round) %>% 
   dplyr::summarise() %>%
-  sf::st_cast("LINESTRING")
+  sf::st_cast("POINT")
+  # sf::st_cast("LINESTRING")
 
-coords <- 
-  matrix(c(xlim[1],xlim[2],ylim[1],ylim[2]), 
-         byrow = TRUE, 
-         nrow = 2, 
-         ncol = 2, 
-         dimnames = list(c('x','y'),c('min','max'))) 
 bbox <- sf::st_bbox(t2_sf)
 
-map <- 
-  osmdata::opq(bbox=sf::st_bbox(t2_sf)) %>% 
-  add_osm_feature(key = 'highway', value = 'footway') %>% 
-  osmdata::osmdata_sf() 
+q <- 
+  opq (bbox=bbox) %>%
+  add_osm_feature(key = "highway", 
+                  value = c("motorway", "primary", "secundary", "tertiary", "unclassified")) %>%
+  osmdata_sf()
+# q <- 
+#   getbb ("Midden-Drenthe") %>%
+#   opq () %>%
+#   add_osm_feature(key = "highway", 
+#                   value = c("motorway", "primary", "secundary", "tertiary", "unclassified")) %>%
+#   osmdata_sf()
 
-plot(map$osm_lines)
+ggplot() +
+  theme_publication() +
+  theme(legend.position = "none") +
+  geom_sf(data = q$osm_lines, inherit.aes = FALSE, color = "black") +
+  # geom_sf(data = river$osm_lines, inherit.aes = FALSE, color = "blue") +
+  geom_point(data=h, aes(x=lon, y=lat), size=1.2, colour="red") +
+  geom_sf(data=t2_sf, aes(colour=round), size=0.5) +
+  facet_wrap(~id, nrow=3)
+  
+  
+
+# plot(map$osm_lines)
 
 ggplot() +
   theme_publication() +
   theme(legend.position="none") +
   # geom_sf(data=map) +
   geom_sf(data=t2_sf, aes(colour=id)) +
+  geom_point(data=h, aes(x=lon, y=lat), size=1.2, colour="red") +
   facet_wrap(~round, ncol=8)
 
 # leaflet solution
