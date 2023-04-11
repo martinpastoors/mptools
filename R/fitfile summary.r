@@ -7,7 +7,7 @@
 library(FITfileR)    # remotes::install_github("grimbough/FITfileR")
 library(tidyverse)
 library(RJSONIO)     #install.packages("RJSONIO")
-library(osmdata)
+# library(osmdata)
 library(sf)
 
 options(dplyr.summarise.inform = FALSE)
@@ -40,18 +40,20 @@ session %>%
   mutate(year = lubridate::year(date)) %>% 
   filter(sport=="running") %>% 
   group_by(year, sport) %>% 
-  summarise(
-    n              = n(),
-    distance       = sum(distance, na.rm=TRUE),
-    duration       = sum(duration, na.rm=TRUE),
-    km_hour        = mean(km_hour, na.rm=TRUE),
-    avg_heart_rate = mean(avg_heart_rate, na.rm=TRUE)
-  ) %>% 
-  tidyr::pivot_longer(names_to = "variable", values_to = "data", n:avg_heart_rate) %>% 
+  # summarise(
+  #   n              = n(),
+  #   distance       = sum(distance, na.rm=TRUE),
+  #   duration       = sum(duration, na.rm=TRUE),
+  #   km_hour        = mean(km_hour, na.rm=TRUE),
+  #   avg_heart_rate = mean(avg_heart_rate, na.rm=TRUE)
+  # ) %>% 
+  tidyr::pivot_longer(names_to = "variable", values_to = "data", c(km_hour, distance, avg_heart_rate)) %>% 
   ggplot(aes(x=year, y=data)) +
   theme_publication() +
-  geom_point() +
-  geom_line( ) +
+  # geom_point() +
+  # geom_line( ) +
+  geom_boxplot(aes(group=year)) +
   facet_wrap(~variable, scales="free_y")
 
+session %>% filter(distance > 40000, sport=="running") %>% View()
 
