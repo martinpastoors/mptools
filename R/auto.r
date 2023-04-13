@@ -55,7 +55,16 @@ t <-
   ) %>% 
   filter(year >= 2003) %>% 
   filter(year %notin% 2014:2018)  # missing Corsa Eco data
-  
+
+# per month  
+m <-
+  t %>% 
+  group_by(decade, year, month) %>% 
+  summarise(
+    km = sum(kmafgelegd, na.rm=TRUE),
+    euro= sum(eurogetankt, na.rm=TRUE),
+    liters=sum(litersgetankt, na.rm=TRUE)
+  )
 
 tt <-
   t %>% 
@@ -106,6 +115,15 @@ t %>%
                            aes(label=year, colour=as.character(year)),
                            hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
                            min.segment.length = 0) +
+  facet_wrap(~decade)
+
+# plot km per month
+m %>% 
+  ggplot(aes(x=month, y=km, group=year)) +
+  theme_publication() +
+  theme(legend.position="none") +
+  geom_line(aes(colour=as.character(year))) +
+  labs(title="afgelegde kilometers") +
   facet_wrap(~decade)
 
 skimr::skim(t)
