@@ -122,9 +122,11 @@ m %>%
   ggplot(aes(x=month, y=km, group=year)) +
   theme_publication() +
   theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
+  # geom_line(aes(colour=as.character(year))) +
+  geom_bar(aes(fill=as.character(year)), stat="identity") +
   labs(title="afgelegde kilometers") +
-  facet_wrap(~decade)
+  scale_x_continuous(breaks=seq(1,12,1)) +
+  facet_wrap(~year)
 
 skimr::skim(t)
 count_not_finite(t)
