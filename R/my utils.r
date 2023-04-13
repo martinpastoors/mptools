@@ -67,7 +67,7 @@ theme_publication <- function(base_size=14, base_family="Helvetica") {
             axis.ticks       = element_line(),
             panel.grid.major = element_line(colour="#f0f0f0"),
             panel.grid.minor = element_blank(),
-            panel.border     = element_rect(colour="black" , size=0.1),
+            panel.border     = element_rect(colour="black" , linewidth=0.1),
             panel.background = element_rect(colour = NA),
             strip.background = element_rect(colour="#f0f0f0",fill="#f0f0f0"),
             strip.text       = element_text(face="bold"),

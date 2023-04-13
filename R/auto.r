@@ -14,11 +14,13 @@ options(dplyr.summarise.inform = FALSE)
 
 source("r/my utils.r")
 
+dropboxdir <- file.path(get_dropbox(), "Martin en Pina")
+
 # drive_find()
 drive_download(file="Auto verbruik.xlsx", overwrite=TRUE)
 
 t <-
-  readxl::read_excel("C:/Users/MartinPastoors/Dropbox/Martin en Pina/auto verbruik.xlsx") %>% 
+  readxl::read_excel(file.path(dropboxdir, "auto verbruik.xlsx")) %>% 
   lowcase() %>% 
   drop_na(datum) %>% 
   drop_na(kmafgelegd) %>% 
@@ -116,6 +118,20 @@ t %>%
                            hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
                            min.segment.length = 0) +
   facet_wrap(~decade)
+
+t %>% 
+  filter(year >= 2019) %>% 
+  ggplot(aes(x=yday, y=liters, group=year)) +
+  theme_publication() +
+  theme(legend.position="none") +
+  geom_line(aes(colour=as.character(year))) +
+  geom_point(data=filter(tt, year >= 2019),
+             aes(colour=as.character(year))) +
+  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
+  ggrepel::geom_text_repel(data=filter(tt, year >= 2019), 
+                           aes(label=year, colour=as.character(year)),
+                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
+                           min.segment.length = 0) 
 
 # plot km per month
 m %>% 
