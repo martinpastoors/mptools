@@ -119,60 +119,32 @@ owid %>%
 distinct(owid, country) %>% filter(grepl("Europe", country))
 owid %>% filter(country == "European Union (27)") %>% View()
 
-# plot euro
-t %>% 
-  ggplot(aes(x=yday, y=euro, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  geom_point(data=tt,
-             aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=tt, 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) +
-  facet_wrap(~decade)
+# stikstof en ammoniak
+t <-
+  er %>% 
+  filter(grepl("stikstof|ammoniak", tolower(stof))) %>% 
+  group_by(year, stof, sector) %>% 
+  summarise(emission = sum(emission, na.rm=TRUE)) 
 
-# plot liters
-t %>% 
-  ggplot(aes(x=yday, y=liters, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  geom_point(data=tt,
-             aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=tt, 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) +
-  facet_wrap(~decade)
+tt <-
+  t %>% 
+  # filter(year==2021) %>% 
+  group_by(sector) %>% 
+  summarise(emission=sum(emission)) %>% 
+  arrange(desc(emission)) %>% 
+  ungroup() %>% 
+  mutate(sector = ifelse(row_number() <= 8, sector, "overig")) %>% 
+  group_by(sector) %>% 
+  summarise(emission=sum(emission)) %>% 
+  arrange(desc(emission))
+  
 
 t %>% 
-  filter(year >= 2019) %>% 
-  ggplot(aes(x=yday, y=liters, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  geom_point(data=filter(tt, year >= 2019),
-             aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=filter(tt, year >= 2019), 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) 
-
-# plot km per month
-m %>% 
-  ggplot(aes(x=month, y=km, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  # geom_line(aes(colour=as.character(year))) +
-  geom_bar(aes(fill=as.character(year)), stat="identity") +
-  labs(title="afgelegde kilometers") +
-  scale_x_continuous(breaks=seq(1,12,1)) +
-  facet_wrap(~year)
+  mutate(sector = factor(sector, levels=tt$sector)) %>% 
+  ggplot(aes(x=year, y=emission, group=stof)) +
+  theme_publication()+
+  geom_bar(aes(fill=stof), stat="identity") +
+  facet_wrap(~sector)
 
 skimr::skim(t)
 count_not_finite(t)
