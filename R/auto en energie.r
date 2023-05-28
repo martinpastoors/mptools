@@ -73,9 +73,9 @@ auto_per_month <-
   auto %>% 
   group_by(decade, year, month) %>% 
   summarise(
-    km = sum(kmafgelegd, na.rm=TRUE),
-    euro= sum(eurogetankt, na.rm=TRUE),
-    liters=sum(litersgetankt, na.rm=TRUE)
+    km = as.integer(sum(kmafgelegd, na.rm=TRUE)),
+    euro= as.integer(sum(eurogetankt, na.rm=TRUE)),
+    liters=as.integer(sum(litersgetankt, na.rm=TRUE))
   ) %>% 
   group_by(decade, year) %>% 
   mutate(
@@ -102,21 +102,43 @@ auto_per_month %>%
   geom_line(aes(y=avg)) +
   geom_text(aes(label=scales::percent(km_rel_to_avg, accuracy=1)), vjust=0)
 
+t <-
+  auto_per_month %>% 
+  group_by(decade, year) %>% 
+  filter(month == min(month))
+
+tt <-
+  auto_per_month %>% 
+  group_by(decade, year) %>% 
+  filter(month == max(month))
+
+ttt <-
+  auto_per_month %>% 
+  group_by(decade, year) %>% 
+  filter(month == 5)
 
 # plot auto km
-t %>% 
-  ggplot(aes(x=yday, y=km, group=year)) +
+auto_per_month %>% 
+  ggplot(aes(x=month, y=km_cumsum, group=year)) +
   theme_publication() +
   theme(legend.position="none") +
   geom_line(aes(colour=as.character(year))) +
-  geom_point(data=tt,
+  scale_x_continuous(breaks=seq(1,12,1)) +
+  # ggrepel::geom_text_repel(data=t,
+  #                          aes(label=year, colour=as.character(year)),
+  #                          hjust=1, size=3, segment.size=0.15, segment.linetype="dashed", nudge_x=-2, direction="y",
+  #                          min.segment.length = 0) +
+  # ggrepel::geom_text_repel(data=tt,
+  #                          aes(label=km_cumsum, colour=as.character(year)),
+  #                          hjust=0, size=3, segment.size=0.15, segment.linetype="dashed", nudge_x=5, direction="y",
+  #                          min.segment.length = 0) +
+  geom_point(data=ttt,
              aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=tt, 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
+  ggrepel::geom_text_repel(data=ttt,
+                           aes(label=paste(km_cumsum, paste0("(", year,")")), colour=as.character(year)),
+                           hjust=0, size=3, segment.size=0.15, segment.linetype="dashed", nudge_x=5, direction="y",
                            min.segment.length = 0) +
-  labs(title="afgelegde kilometers") +
+  labs(title="cumulatieve kilometers per jaar") +
   facet_wrap(~decade)
 
 # plot euro
