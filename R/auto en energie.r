@@ -115,7 +115,7 @@ tt <-
 ttt <-
   auto_per_month %>% 
   group_by(decade, year) %>% 
-  filter(month == 5)
+  filter(month == 7)
 
 # plot auto km
 auto_per_month %>% 
