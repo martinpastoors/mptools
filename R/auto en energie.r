@@ -114,8 +114,11 @@ tt <-
 
 ttt <-
   auto_per_month %>% 
-  group_by(decade, year) %>% 
-  filter(month == 7)
+  ungroup() %>% 
+  filter(year==max(year)) %>% 
+  filter(month == max(month)) %>% 
+  dplyr::select(month) %>% 
+  left_join(auto_per_month, by="month")
 
 # plot auto km
 auto_per_month %>% 
