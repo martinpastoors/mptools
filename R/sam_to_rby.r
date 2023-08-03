@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------------------
-# read_sam.r
+# sam_to_rby.r
 #
 # Read sam outputs and convert to tidy format
 #
@@ -7,33 +7,45 @@
 # --------------------------------------------------------------------------------
 
 library(stockassessment)
-
-# devtools::install_github("einarhjorleifsson/readsam")
-# library(readsam)
 library(tidyverse)
 
-# name           <- "WGWIDE2018.1"
-# stockname      <- "mac.27.nea"
-# assessmentyear <- 2018
-# replacerecruit <- TRUE
-# savepath       <- "D:/WGWIDE/2018 Meeting Docs/06. Data/mac.27.nea/output/tidy"
-
-name           <- "BW_2018"
+assessmentyear <- 2022
+name           <- paste0("BW-", assessmentyear)
 stockname      <- "whb.27.1-91214"
-assessmentyear <- 2018
 replacerecruit <- FALSE
-savepath       <- "D:/WGWIDE/2018 Meeting Docs/06. Data/whb.27.1-91214/output/tidy"
+datapath       <- paste0("D:/ICES/WGWIDE/",assessmentyear," Meeting Docs/06. Data/",stockname,"/output/tidy")
+savepath       <- "D:/ICES/WGWIDE/2018 Meeting Docs/06. Data/whb.27.1-91214/output/tidy"
 
-# input-by-year-and-age, from assessment.org
-ibya <- 
-  readsam::read_ibya(name) %>% 
-  mutate(
-    stock = stockname, 
-    assessmentyear = assessmentyear
-  )
+get_file <- function(URL, File)
+{
+  temporaryFile <- tempfile()
+  utils::download.file(paste(URL, File, sep = "/"),
+                       destfile = temporaryFile,
+                       method = "curl",
+                       quiet = T)
+  return(temporaryFile)
+}
+
+
+get_fit <- function(ass, web = TRUE, user = "user3") {
+  
+  url <- paste("https://www.stockassessment.org/datadisk/stockassessment/userdirs",
+               user,
+               ass,
+               "run",
+               sep="/")
+  
+  fil <- get_file(url, "model.RData")
+  attach(fil, pos = 2)
+  fit <- fit
+  detach(pos = 2)
+  return(fit)
+  
+}
+
 
 # get fit from assessment.org
-f <- readsam:::get_fit(name)
+f <- get_fit(name)
 
 # get summary data
 fy        <- min(f$data$years)

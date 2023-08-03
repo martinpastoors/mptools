@@ -237,7 +237,7 @@ list_all_objects_in_package <- function(x) {
 
 # lowcase function
 lowcase <- function(df) {
-  names(df) <- tolower(names(df)) %>% gsub("\\?|\\s+|\\.+|_+|\\(|\\)","",.) 
+  names(df) <- tolower(names(df)) %>% gsub("\\?|\\s+|\\.+|_+|\\(|\\)|\\\\|\\/","",.) 
   df
 }
 

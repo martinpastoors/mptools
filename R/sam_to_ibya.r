@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------------------
-# read_sam.r
+# sam_to_rby.r
 #
 # Read sam outputs and convert to tidy format
 #
@@ -9,15 +9,9 @@
 library(stockassessment)
 library(tidyverse)
 
-# name           <- "WGWIDE2018.1"
-# stockname      <- "mac.27.nea"
-# assessmentyear <- 2018
-# replacerecruit <- TRUE
-# savepath       <- "D:/WGWIDE/2018 Meeting Docs/06. Data/mac.27.nea/output/tidy"
-
 name           <- "BW_2018"
 stockname      <- "whb.27.1-91214"
-assessmentyear <- 2018
+assessmentyear <- 2022
 replacerecruit <- FALSE
 savepath       <- "D:/WGWIDE/2018 Meeting Docs/06. Data/whb.27.1-91214/output/tidy"
 
