@@ -84,11 +84,29 @@ auto_per_month <-
     liters_cumsum=cumsum(liters)
   )
 
-
 auto_per_year <-
   auto %>% 
-  group_by(year) %>% 
-  slice_tail(n=1)
+  group_by(decade, year) %>% 
+  summarise(
+    km = as.integer(sum(kmafgelegd, na.rm=TRUE)),
+    euro= as.integer(sum(eurogetankt, na.rm=TRUE)),
+    liters=as.integer(sum(litersgetankt, na.rm=TRUE))
+  ) 
+
+auto_per_month <-
+  auto %>% 
+  group_by(decade, year, month) %>% 
+  summarise(
+    km = as.integer(sum(kmafgelegd, na.rm=TRUE)),
+    euro= as.integer(sum(eurogetankt, na.rm=TRUE)),
+    liters=as.integer(sum(litersgetankt, na.rm=TRUE))
+  ) %>% 
+  group_by(decade, year) %>% 
+  mutate(
+    km_cumsum = cumsum(km),
+    euro_cumsum= cumsum(euro),
+    liters_cumsum=cumsum(liters)
+  )
 
 # plot auto in april
 auto_per_month %>% 
@@ -144,60 +162,6 @@ auto_per_month %>%
   labs(title="cumulatieve kilometers per jaar") +
   facet_wrap(~decade)
 
-# plot euro
-t %>% 
-  ggplot(aes(x=yday, y=euro, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  geom_point(data=tt,
-             aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=tt, 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) +
-  facet_wrap(~decade)
-
-# plot liters
-t %>% 
-  ggplot(aes(x=yday, y=liters, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  geom_point(data=tt,
-             aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=tt, 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) +
-  facet_wrap(~decade)
-
-t %>% 
-  filter(year >= 2019) %>% 
-  ggplot(aes(x=yday, y=liters, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  geom_point(data=filter(tt, year >= 2019),
-             aes(colour=as.character(year))) +
-  scale_x_continuous(limits=c(0,400), breaks=seq(0,350,50)) +
-  ggrepel::geom_text_repel(data=filter(tt, year >= 2019), 
-                           aes(label=year, colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.25, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) 
-
-# plot km per month
-m %>% 
-  ggplot(aes(x=month, y=km, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  # geom_line(aes(colour=as.character(year))) +
-  geom_bar(aes(fill=as.character(year)), stat="identity") +
-  labs(title="afgelegde kilometers") +
-  scale_x_continuous(breaks=seq(1,12,1)) +
-  facet_wrap(~year)
 
 skimr::skim(t)
 count_not_finite(t)
@@ -207,5 +171,32 @@ unique(t$num_laps)
 inspectdf::inspect_num(t) %>% inspectdf::show_plot()
 inspectdf::inspect_imb(t) %>% inspectdf::show_plot()
 inspectdf::inspect_cat(t) %>% inspectdf::show_plot()
+
+names(energie)[grepl("jaar", names(energie))]
+
+# plot auto en energie km
+energie %>% 
+  left_join(dplyr::select(auto_per_year, jaar=year, litersbenzine=liters),
+            by="jaar") %>% 
+  dplyr::select(jaar, stroomproductieperjaar, stroomverbruikperjaar, 
+                gasverbruikperjaar, waterverbruikperjaar, litersbenzine) %>% 
+  tidyr::pivot_longer(names_to = "variable", values_to = "data", 
+                      stroomproductieperjaar:litersbenzine) %>% 
+  drop_na(data) %>% 
+  tidyr::complete(jaar, variable) %>% 
+  mutate(variable = factor(variable, 
+                           levels=c("stroomproductieperjaar", "stroomverbruikperjaar", 
+                                    "gasverbruikperjaar", "waterverbruikperjaar", 
+                                    "litersbenzine"))) %>% 
+  # View()
+
+  ggplot(aes(x=jaar, y=data)) +
+  theme_publication() +
+  theme(legend.position="none") +
+  geom_point() +
+  geom_line() +
+  labs(title="energie en water") +
+  expand_limits(y=0) +
+  facet_wrap(~variable, scales="free_y")
 
 
