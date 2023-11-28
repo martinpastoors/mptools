@@ -199,4 +199,29 @@ energie %>%
   expand_limits(y=0) +
   facet_wrap(~variable, scales="free_y")
 
+# cumulatief verbruik en productie per jaar en maand
+energie %>% 
+  left_join(dplyr::select(auto_per_month, maand=month, jaar=year, litersbenzine=liters),
+            by=c("jaar","maand")) %>% 
+  dplyr::select(jaar, maand, stroomproductiepermaand, stroomverbruikpermaand, 
+                gasverbruikpermaand, watergebruikpermaand, litersbenzine) %>% 
+  filter(jaar >= 2019) %>% 
+  tidyr::pivot_longer(names_to = "variable", values_to = "data", 
+                      stroomproductiepermaand:litersbenzine) %>% 
+  drop_na(data) %>% 
+  tidyr::complete(jaar, maand, variable) %>% 
+  mutate(variable = factor(variable, 
+                           levels=c("stroomproductiepermaand", "stroomverbruikpermaand", 
+                                    "gasverbruikpermaand", "watergebruikpermaand", 
+                                    "litersbenzine"))) %>% 
+  View()
+  
+  ggplot(aes(x=jaar, y=data)) +
+  theme_publication() +
+  theme(legend.position="none") +
+  geom_point() +
+  geom_line() +
+  labs(title="energie en water") +
+  expand_limits(y=0) +
+  facet_wrap(~variable, scales="free_y")
 
