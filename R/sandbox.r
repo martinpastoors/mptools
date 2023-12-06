@@ -11,6 +11,33 @@ options(dplyr.summarise.inform = FALSE)
 
 source("r/my utils.r")
 
+# PISA 2022
+t <-
+  readxl::read_excel("C:/TEMP/OECD 2023 PISA.xlsx", range="B12:F204") %>% 
+  lowcase() %>% 
+  mutate(across(c(score,se), as.numeric)) %>% 
+  mutate(across(c(year), as.integer)) 
+
+t <-
+  bind_rows(
+    t,
+    t %>% 
+      filter(eu=="yes") %>% 
+      group_by(year) %>% 
+      summarise(score=mean(score, na.rm=TRUE)) %>% 
+      mutate(country="EU")
+  )
+
+t %>% 
+  ggplot(aes(x=year, y=score, group=country)) +
+  theme_publication() +
+  geom_line(colour="gray") +
+  geom_line(data=t %>% filter(country=="Netherlands"), colour="red", size=1) +
+  geom_line(data=t %>% filter(country=="Ireland"), colour="green", size=1) +
+  geom_line(data=t %>% filter(country=="EU"), colour="blue", size=1)
+  # geom_label_repel(data=t %>% filter(year==2022), aes(label=country), size=3, hjust=0, nudge_x=0.5,  direction="y", colour="gray") +
+  # scale_x_continuous(expand=c(0, 10))  
+
 # stikstof schier
 t <-
   readxl::read_excel("C:/TEMP/CLO NH3 schiermonnikoog-3-maanden.xlsx") %>% 
