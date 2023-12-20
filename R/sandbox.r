@@ -116,3 +116,9 @@ foreach(i = 1:12) %dopar% {
   
   print(sum(rnorm(99)))
 }
+
+
+
+library(cbsodataR)
+toc <- cbs_get_toc()
+toc %>% filter(grepl("wereldmarkt", tolower(Title))) %>% View()
