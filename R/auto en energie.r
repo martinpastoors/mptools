@@ -25,7 +25,8 @@ energie <-
   filter(!is.na(datum))
 
 
-# google drive_find()
+# googledrive::drive_auth()
+# googledrive::drive_find()
 drive_download(file="Auto verbruik.xlsx", overwrite=TRUE)
 
 # Auto
@@ -162,6 +163,13 @@ auto_per_month %>%
   labs(title="cumulatieve kilometers per jaar") +
   facet_wrap(~decade)
 
+readxl::read_excel(file.path(dropboxdir, "auto verbruik.xlsx")) %>% 
+  lowcase() %>% 
+  drop_na(datum) %>% 
+  drop_na(kmafgelegd) %>% 
+  drop_na(l100km) %>% 
+  group_by(auto) %>% 
+  summarise(l100km = mean(l100km, drop.na=TRUE))
 
 skimr::skim(t)
 count_not_finite(t)

@@ -11,6 +11,29 @@ options(dplyr.summarise.inform = FALSE)
 
 source("r/my utils.r")
 
+# Geom contour
+# https://stackoverflow.com/questions/74980559/combining-land-only-maps-and-contour-plots-using-ggplot-masking-filling-the-o
+
+set.seed(1)
+
+a <- MASS::kde2d(rnorm(100), rnorm(100, 53), n = 100, 
+                 lims = c(-2.2, 1.8, 51, 53.5))
+b <- MASS::kde2d(rnorm(25, 0.5), rnorm(25, 52), n = 100, 
+                 lims = c(-2.2, 1.8, 51, 53.5))
+a$z <- b$z - a$z + max(a$z)
+
+data <- cbind(expand.grid(Lng = a$x, Lat = a$y), P = c(a$z))
+
+sea <- rnaturalearth::ne_download(scale = 10, type = 'ocean', category = "physical",
+                   returnclass = "sf")
+
+ggplot(data) + 
+  geom_contour_filled(aes(Lng, Lat, z = P), bins = 20, color = "black") +
+  guides(fill = "none") +
+  geom_sf(data = sea, fill = "black") +
+  coord_sf(ylim = c(51, 53.5), xlim = c(-2.2, 1.8), expand = FALSE)
+
+
 # PISA 2022
 t <-
   readxl::read_excel("C:/TEMP/OECD 2023 PISA.xlsx", range="B12:F204") %>% 
