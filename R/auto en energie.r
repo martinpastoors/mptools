@@ -1,5 +1,5 @@
 # ====================================================================================
-# auto.r
+# auto en energie.r
 # 
 # read auto data 
 # ====================================================================================
@@ -16,18 +16,30 @@ source("r/my utils.r")
 
 dropboxdir <- file.path(get_dropbox(), "Martin en Pina")
 
-# Energie en water
 energie <-
-  readxl::read_excel(file.path(dropboxdir, "energie en water", "Energie verbruik.xlsx"), 
+  readxl::read_excel(file.path(dropboxdir, "energie en water", "Energie verbruik - Gecombineerd.xlsx"), 
                      sheet="data",
-                     range="A1:AB500") %>% 
+                     range="A1:X500") %>% 
   lowcase() %>% 
-  filter(!is.na(datum))
+  filter(!is.na(datum)) %>% 
+  mutate(
+    yday  = lubridate::yday(datum),
+    decade= 10*floor(jaar/10)
+  ) %>% 
+  arrange(desc(woning), datum)  
+  
+  # group_by(woning, year) %>% 
+  # mutate(
+  #   km   = cumsum(kmafgelegd),
+  #   euro = cumsum(eurogetankt),
+  #   liters=cumsum(litersgetankt)
+  # )
 
-
+# options(gargle_verbosity = "debug")
 # googledrive::drive_auth()
 # googledrive::drive_find()
-drive_download(file="Auto verbruik.xlsx", overwrite=TRUE)
+
+# drive_download(file="Auto verbruik.xlsx", overwrite=TRUE)
 
 # Auto
 auto <-
@@ -40,7 +52,7 @@ auto <-
   
   # bind google drive document
   bind_rows(
-    readxl::read_excel("Auto verbruik.xlsx") %>% 
+    readxl::read_excel(file.path(dropboxdir, "energie en water", "Auto verbruik.xlsx")) %>% 
     lowcase() %>% 
     drop_na(datum) %>% 
     drop_na(kmafgelegd) %>% 
@@ -48,155 +60,75 @@ auto <-
   ) %>% 
   mutate(
     yday  = lubridate::yday(datum),
-    month = lubridate::month(datum),
-    year  = lubridate::year(datum),
-    decade= 10*floor(year/10)
+    maand = lubridate::month(datum),
+    jaar  = lubridate::year(datum),
+    decade= 10*floor(jaar/10)
   ) %>% 
   arrange(datum) %>% 
+  filter(jaar >= 2003) %>% 
+  filter(jaar %notin% 2014:2018)  # missing Corsa Eco data
+
+
+trein <- 
+  read.csv(file.path(dropboxdir,"energie en water", "trein.csv")) %>% 
+  filter(jaar >= 2005) %>%
+  mutate(trein_euro = ifelse(is.na(trein_euro), 0, -trein_euro)) 
+
+
+# auto %>% group_by(jaar) %>% summarise(km = sum(kmafgelegd, na.rm=TRUE)) %>% View()
+
+# skimr::skim(t)
+# count_not_finite(t)
+# count_zeroes(t)
+# unique(t$num_laps)
+
+# inspectdf::inspect_num(t) %>% inspectdf::show_plot()
+# inspectdf::inspect_imb(t) %>% inspectdf::show_plot()
+# inspectdf::inspect_cat(t) %>% inspectdf::show_plot()
+
+# plot energie, auto en trein
+bind_rows(
+  energie %>% 
+    group_by(jaar) %>% 
+    summarise(
+      stroomproductie = sum(brutoproductiekwh, na.rm=TRUE),
+      stroomverbruik  = sum(`nettostroom-verbruikkwhberekend`, na.rm=TRUE),
+      gasverbruik     = sum(gasverbruikm3berekend, na.rm=TRUE),
+      waterverbruik   = sum(waterverbruikm3berekend, na.rm=TRUE) 
+    ) %>%   
+    tidyr::pivot_longer(names_to = "variable", 
+                        values_to = "data", 
+                        stroomproductie:waterverbruik) %>% 
+    drop_na(data),
   
-  # quick fix for missing liters or euros
-  mutate(
-    litersgetankt = ifelse(is.na(litersgetankt), lag(litersgetankt) * kmafgelegd/lag(kmafgelegd), litersgetankt),
-    eurogetankt   = ifelse(is.na(eurogetankt), lag(eurogetankt) * kmafgelegd/lag(kmafgelegd), eurogetankt)
-  ) %>% 
+  auto %>% 
+    group_by(jaar) %>% 
+    summarise(
+      kmafgelegd = as.integer(sum(kmafgelegd, na.rm=TRUE)),
+      benzineverbruik=as.integer(sum(litersgetankt, na.rm=TRUE))
+    ) %>%   
+    tidyr::pivot_longer(names_to = "variable", 
+                        values_to = "data", 
+                        kmafgelegd:benzineverbruik) %>% 
+    drop_na(data),
   
-  group_by(year) %>% 
-  mutate(
-    km   = cumsum(kmafgelegd),
-    euro =cumsum(eurogetankt),
-    liters=cumsum(litersgetankt)
+  trein %>%   
+    group_by(jaar) %>% 
+    summarise(trein_euro = sum(trein_euro, na.rm=TRUE)) %>% 
+    tidyr::pivot_longer(names_to = "variable", 
+                        values_to = "data", 
+                        trein_euro) %>% 
+    drop_na(data)
   ) %>% 
-  filter(year >= 2003) %>% 
-  filter(year %notin% 2014:2018)  # missing Corsa Eco data
-
-# per month  
-auto_per_month <-
-  auto %>% 
-  group_by(decade, year, month) %>% 
-  summarise(
-    km = as.integer(sum(kmafgelegd, na.rm=TRUE)),
-    euro= as.integer(sum(eurogetankt, na.rm=TRUE)),
-    liters=as.integer(sum(litersgetankt, na.rm=TRUE))
-  ) %>% 
-  group_by(decade, year) %>% 
-  mutate(
-    km_cumsum = cumsum(km),
-    euro_cumsum= cumsum(euro),
-    liters_cumsum=cumsum(liters)
-  )
-
-auto_per_year <-
-  auto %>% 
-  group_by(decade, year) %>% 
-  summarise(
-    km = as.integer(sum(kmafgelegd, na.rm=TRUE)),
-    euro= as.integer(sum(eurogetankt, na.rm=TRUE)),
-    liters=as.integer(sum(litersgetankt, na.rm=TRUE))
-  ) 
-
-auto_per_month <-
-  auto %>% 
-  group_by(decade, year, month) %>% 
-  summarise(
-    km = as.integer(sum(kmafgelegd, na.rm=TRUE)),
-    euro= as.integer(sum(eurogetankt, na.rm=TRUE)),
-    liters=as.integer(sum(litersgetankt, na.rm=TRUE))
-  ) %>% 
-  group_by(decade, year) %>% 
-  mutate(
-    km_cumsum = cumsum(km),
-    euro_cumsum= cumsum(euro),
-    liters_cumsum=cumsum(liters)
-  )
-
-# plot auto in april
-auto_per_month %>% 
-  filter(month==4) %>% 
-  ungroup() %>% 
-  mutate(avg = mean(km_cumsum[year>= 2010 & year <= 2020])) %>% 
-  mutate(km_rel_to_avg = km_cumsum/avg-1) %>%  
-  ggplot(aes(x=year, y=km_cumsum)) +
-  theme_publication() +
-  geom_bar(stat="identity") +
-  geom_line(aes(y=avg)) +
-  geom_text(aes(label=scales::percent(km_rel_to_avg, accuracy=1)), vjust=0)
-
-t <-
-  auto_per_month %>% 
-  group_by(decade, year) %>% 
-  filter(month == min(month))
-
-tt <-
-  auto_per_month %>% 
-  group_by(decade, year) %>% 
-  filter(month == max(month))
-
-ttt <-
-  auto_per_month %>% 
-  ungroup() %>% 
-  filter(year==max(year)) %>% 
-  filter(month == max(month)) %>% 
-  dplyr::select(month) %>% 
-  left_join(auto_per_month, by="month")
-
-# plot auto km
-auto_per_month %>% 
-  ggplot(aes(x=month, y=km_cumsum, group=year)) +
-  theme_publication() +
-  theme(legend.position="none") +
-  geom_line(aes(colour=as.character(year))) +
-  scale_x_continuous(breaks=seq(1,12,1)) +
-  # ggrepel::geom_text_repel(data=t,
-  #                          aes(label=year, colour=as.character(year)),
-  #                          hjust=1, size=3, segment.size=0.15, segment.linetype="dashed", nudge_x=-2, direction="y",
-  #                          min.segment.length = 0) +
-  # ggrepel::geom_text_repel(data=tt,
-  #                          aes(label=km_cumsum, colour=as.character(year)),
-  #                          hjust=0, size=3, segment.size=0.15, segment.linetype="dashed", nudge_x=5, direction="y",
-  #                          min.segment.length = 0) +
-  geom_point(data=ttt,
-             aes(colour=as.character(year))) +
-  ggrepel::geom_text_repel(data=ttt,
-                           aes(label=paste(km_cumsum, paste0("(", year,")")), colour=as.character(year)),
-                           hjust=0, size=3, segment.size=0.15, segment.linetype="dashed", nudge_x=5, direction="y",
-                           min.segment.length = 0) +
-  labs(title="cumulatieve kilometers per jaar") +
-  facet_wrap(~decade)
-
-readxl::read_excel(file.path(dropboxdir, "auto verbruik.xlsx")) %>% 
-  lowcase() %>% 
-  drop_na(datum) %>% 
-  drop_na(kmafgelegd) %>% 
-  drop_na(l100km) %>% 
-  group_by(auto) %>% 
-  summarise(l100km = mean(l100km, drop.na=TRUE))
-
-skimr::skim(t)
-count_not_finite(t)
-count_zeroes(t)
-unique(t$num_laps)
-
-inspectdf::inspect_num(t) %>% inspectdf::show_plot()
-inspectdf::inspect_imb(t) %>% inspectdf::show_plot()
-inspectdf::inspect_cat(t) %>% inspectdf::show_plot()
-
-names(energie)[grepl("jaar", names(energie))]
-
-# plot auto en energie km
-energie %>% 
-  left_join(dplyr::select(auto_per_year, jaar=year, litersbenzine=liters),
-            by="jaar") %>% 
-  dplyr::select(jaar, stroomproductieperjaar, stroomverbruikperjaar, 
-                gasverbruikperjaar, waterverbruikperjaar, litersbenzine) %>% 
-  tidyr::pivot_longer(names_to = "variable", values_to = "data", 
-                      stroomproductieperjaar:litersbenzine) %>% 
-  drop_na(data) %>% 
   tidyr::complete(jaar, variable) %>% 
   mutate(variable = factor(variable, 
-                           levels=c("stroomproductieperjaar", "stroomverbruikperjaar", 
-                                    "gasverbruikperjaar", "waterverbruikperjaar", 
-                                    "litersbenzine"))) %>% 
-  # View()
+                           levels=c("stroomproductie", 
+                                    "stroomverbruik", 
+                                    "gasverbruik", 
+                                    "waterverbruik", 
+                                    "benzineverbruik",
+                                    "kmafgelegd",
+                                    "trein_euro"))) %>% 
 
   ggplot(aes(x=jaar, y=data)) +
   theme_publication() +
@@ -207,29 +139,79 @@ energie %>%
   expand_limits(y=0) +
   facet_wrap(~variable, scales="free_y")
 
-# cumulatief verbruik en productie per jaar en maand
-energie %>% 
-  left_join(dplyr::select(auto_per_month, maand=month, jaar=year, litersbenzine=liters),
-            by=c("jaar","maand")) %>% 
-  dplyr::select(jaar, maand, stroomproductiepermaand, stroomverbruikpermaand, 
-                gasverbruikpermaand, watergebruikpermaand, litersbenzine) %>% 
-  filter(jaar >= 2019) %>% 
-  tidyr::pivot_longer(names_to = "variable", values_to = "data", 
-                      stroomproductiepermaand:litersbenzine) %>% 
-  drop_na(data) %>% 
-  tidyr::complete(jaar, maand, variable) %>% 
-  mutate(variable = factor(variable, 
-                           levels=c("stroomproductiepermaand", "stroomverbruikpermaand", 
-                                    "gasverbruikpermaand", "watergebruikpermaand", 
-                                    "litersbenzine"))) %>% 
-  View()
+
+
+# plot energie, auto en trein per maand
+tmp <-
+  bind_rows(
+  energie %>% 
+    group_by(jaar, maand) %>% 
+    summarise(
+      stroomproductie = sum(brutoproductiekwh, na.rm=TRUE),
+      stroomverbruik  = sum(`nettostroom-verbruikkwhberekend`, na.rm=TRUE),
+      gasverbruik     = sum(gasverbruikm3berekend, na.rm=TRUE),
+      waterverbruik   = sum(waterverbruikm3berekend, na.rm=TRUE) 
+    ) %>%   
+    tidyr::pivot_longer(names_to = "variable", 
+                        values_to = "data", 
+                        stroomproductie:waterverbruik) %>% 
+    drop_na(data),
   
-  ggplot(aes(x=jaar, y=data)) +
+  auto %>% 
+    group_by(jaar, maand) %>% 
+    summarise(
+      kmafgelegd = as.integer(sum(kmafgelegd, na.rm=TRUE)),
+      benzineverbruik=as.integer(sum(litersgetankt, na.rm=TRUE))
+    ) %>%   
+    tidyr::pivot_longer(names_to = "variable", 
+                        values_to = "data", 
+                        kmafgelegd:benzineverbruik) %>% 
+    drop_na(data),
+  
+  trein %>%   
+    group_by(jaar, maand) %>% 
+    summarise(trein_euro = sum(trein_euro, na.rm=TRUE)) %>% 
+    tidyr::pivot_longer(names_to = "variable", 
+                        values_to = "data", 
+                        trein_euro) %>% 
+    drop_na(data)
+  ) %>% 
+  filter(jaar >= 2021) %>% 
+  # tidyr::complete(jaar, maand, variable) %>% 
+  arrange(variable, jaar, maand) %>% 
+  group_by(variable, jaar) %>% 
+  mutate(cumdata = cumsum(data)) %>% 
+  mutate(variable = factor(variable, 
+                           levels=c("stroomproductie", 
+                                    "stroomverbruik", 
+                                    "gasverbruik", 
+                                    "waterverbruik", 
+                                    "benzineverbruik",
+                                    "kmafgelegd",
+                                    "trein_euro"))) 
+
+tmp %>%   
+  ggplot(aes(x=maand, y=data, group=jaar)) +
   theme_publication() +
-  theme(legend.position="none") +
-  geom_point() +
-  geom_line() +
-  labs(title="energie en water") +
+  geom_point(aes(colour=as.character(jaar))) +
+  geom_line(aes(colour=as.character(jaar), linewidth=as.character(jaar))) +
+  labs(title="energie en water", colour="jaar") +
   expand_limits(y=0) +
+  scale_x_continuous(breaks=seq(1,12,1)) +
+  scale_linewidth_manual( values = c(rep(0.5,3), 1) ) +
+  guides(linewidth = "none") +
   facet_wrap(~variable, scales="free_y")
+
+tmp %>%   
+  ggplot(aes(x=maand, y=cumdata, group=jaar)) +
+  theme_publication() +
+  geom_point(aes(colour=as.character(jaar))) +
+  geom_line(aes(colour=as.character(jaar), linewidth=as.character(jaar))) +
+  labs(title="energie en water", colour="jaar") +
+  expand_limits(y=0) +
+  scale_x_continuous(breaks=seq(1,12,1)) +
+  scale_linewidth_manual( values = c(rep(0.5,3), 1) ) +
+  guides(linewidth = "none") +
+  facet_wrap(~variable, scales="free_y")
+
 
